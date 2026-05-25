@@ -1,0 +1,80 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+#  kunga-api — Docker Compose
+#
+#  Services:
+#    kunga-redis  — Redis 7 (BullMQ job queues + caching)
+#    kunga-api    — Fastify REST API  (port 3001)
+#
+#  Usage:
+#    cp .env.example .env           # fill in secrets
+#    docker compose up --build -d   # build & start
+#    docker compose logs -f         # tail logs
+#    docker compose down            # stop & remove containers
+#
+#  NOTE: This compose creates the shared "kunga-network" bridge network.
+#        Start kunga-api before kunga-admin-portal so the network exists.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+services:
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  kunga-redis:
+    image: redis:7-alpine
+    container_name: kunga-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - kunga-network
+
+  # ── Kunga API ───────────────────────────────────────────────────────────────
+  kunga-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kunga-api:latest
+    container_name: kunga-api
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      # Override REDIS_URL to reach the Redis container (not localhost)
+      REDIS_URL: redis://kunga-redis:6379
+      # Log directory inside the container — bind-mounted to the host below
+      LOG_DIR: /opt/kunga/logs
+    volumes:
+      # Bind-mount so logs survive container restarts and are accessible on the host.
+      # The host path is created automatically by Docker if it doesn't exist.
+      - /opt/kunga/logs:/opt/kunga/logs
+    depends_on:
+      kunga-redis:
+        condition: service_healthy
+    networks:
+      - kunga-network
+
+# ── Networks ──────────────────────────────────────────────────────────────────
+networks:
+  kunga-network:
+    driver: bridge
+    name: kunga-network   # fixed name so kunga-admin-portal can join it
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+volumes:
+  redis_data:
+    driver: local
