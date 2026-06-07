@@ -1,22 +1,36 @@
 /**
- * Resend email helper for Kunga Basics.
- * Docs: https://resend.com/docs/api-reference/emails/send-email
+ * Email helper for Kunga Basics — powered by Nodemailer (SMTP).
+ *
+ * Transport: mail.devemm.rw:587 with STARTTLS
  *
  * All send functions are fire-and-forget safe — they never throw,
  * but log failures so email issues are visible in server logs.
  */
 
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { config } from '../config/index.js';
 
-const resend = new Resend(config.resend.apiKey);
-const FROM   = config.resend.fromEmail; // e.g. "Kunga Basics <noreply@kungabasics.com>"
+// ─── SMTP Transport ───────────────────────────────────────────────────────────
 
-// ─── Shared layout wrapper ────────────────────────────────────────────────────
+const transporter = nodemailer.createTransport({
+  host:   config.smtp.host,
+  port:   config.smtp.port,
+  secure: false,          // false = STARTTLS on port 587
+  auth: {
+    user: config.smtp.user,
+    pass: config.smtp.password,
+  },
+  tls: {
+    rejectUnauthorized: false, // allow self-signed certs on private mail servers
+  },
+});
+
+const FROM = config.smtp.from; // e.g. "Kunga Basics <noreply@devemm.rw>"
+
+// ─── Shared HTML layout ───────────────────────────────────────────────────────
 
 function layout(title: string, body: string): string {
-  return `
-<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8" />
@@ -26,7 +40,8 @@ function layout(title: string, body: string): string {
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:'Segoe UI',Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 0;">
     <tr><td align="center">
-      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+      <table width="560" cellpadding="0" cellspacing="0"
+             style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
         <!-- Header -->
         <tr>
           <td style="background:#0d3b36;padding:28px 32px;">
@@ -43,7 +58,8 @@ function layout(title: string, body: string): string {
         </tr>
         <!-- Footer -->
         <tr>
-          <td style="padding:20px 32px;border-top:1px solid #f3f4f6;font-size:12px;color:#9ca3af;text-align:center;">
+          <td style="padding:20px 32px;border-top:1px solid #f3f4f6;font-size:12px;
+                     color:#9ca3af;text-align:center;">
             Kunga Basics · Helping parents support children with developmental challenges<br/>
             You're receiving this because you have an account at kungabasics.com
           </td>
@@ -55,6 +71,50 @@ function layout(title: string, body: string): string {
 </html>`;
 }
 
+// ─── Internal send helper ─────────────────────────────────────────────────────
+
+async function send(to: string, subject: string, html: string): Promise<void> {
+  try {
+    await transporter.sendMail({ from: FROM, to, subject, html });
+    console.log(`[Email] ✓ "${subject}" → ${to}`);
+  } catch (err) {
+    console.error(`[Email] ✗ Failed to send "${subject}" to ${to}:`, err);
+  }
+}
+
+// ─── OTP (verification / 2-FA) ───────────────────────────────────────────────
+
+export async function sendOtpEmail(
+  to: string,
+  name: string,
+  otp: string,
+  expiresInMinutes = 10,
+): Promise<void> {
+  const html = layout('Your Kunga Basics verification code', `
+    <p>Hi ${name || 'there'},</p>
+    <p>Use the code below to verify your identity.
+       It expires in <strong>${expiresInMinutes} minutes</strong>.</p>
+
+    <div style="text-align:center;margin:32px 0;">
+      <div style="display:inline-block;background:#f0fdf4;border:2px dashed #0d9488;
+                  border-radius:12px;padding:20px 40px;">
+        <span style="font-size:40px;font-weight:800;letter-spacing:10px;
+                     color:#0d3b36;font-family:monospace;">
+          ${otp}
+        </span>
+      </div>
+    </div>
+
+    <p style="font-size:13px;color:#6b7280;text-align:center;">
+      Never share this code with anyone — Kunga Basics staff will never ask for it.
+    </p>
+    <p style="font-size:13px;color:#6b7280;">
+      If you didn't request this code, you can safely ignore this email.
+    </p>
+  `);
+  await send(to, 'Your Kunga Basics verification code', html);
+}
+
 // ─── Password reset ───────────────────────────────────────────────────────────
 
 export async function sendPasswordResetEmail(
@@ -62,9 +122,7 @@ export async function sendPasswordResetEmail(
   name: string,
   resetToken: string,
 ): Promise<void> {
-  const resetUrl = `${config.app.deepLinkScheme}://reset-password?token=${resetToken}`;
-  // Also provide a web fallback in case deep link doesn't open
-  const webUrl = `https://app.kungabasics.com/reset-password?token=${resetToken}`;
+  const webUrl = `${config.app.portalUrl}/reset-password?token=${resetToken}`;
 
   const html = layout('Reset your Kunga Basics password', `
     <p>Hi ${name || 'there'},</p>
@@ -78,7 +136,7 @@ export async function sendPasswordResetEmail(
       </a>
     </p>
     <p style="font-size:13px;color:#6b7280;">
-      If the button doesn't work, copy and paste this link into your browser:<br/>
+      If the button doesn't work, copy and paste this link:<br/>
       <a href="${webUrl}" style="color:#0d9488;word-break:break-all;">${webUrl}</a>
     </p>
     <p style="font-size:13px;color:#6b7280;">
@@ -86,57 +144,10 @@ export async function sendPasswordResetEmail(
       your password will not change.
     </p>
   `);
-
-  try {
-    const { error } = await resend.emails.send({
-      from:    FROM,
-      to:      [to],
-      subject: 'Reset your Kunga Basics password',
-      html,
-    });
-    if (error) console.error('[Email] Password reset send failed:', error);
-    else       console.log(`[Email] Password reset sent to ${to}`);
-  } catch (err) {
-    console.error('[Email] Network error sending password reset:', err);
-  }
+  await send(to, 'Reset your Kunga Basics password', html);
 }
 
-// ─── Admin → user direct email ────────────────────────────────────────────────
-
-export async function sendAdminEmail(
-  to: string,
-  userName: string,
-  subject: string,
-  message: string,
-): Promise<void> {
-  // Convert plain-text line breaks to HTML paragraphs
-  const paragraphs = message
-    .split(/\n{2,}/)
-    .map(p => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
-    .join('');
-
-  const html = layout(subject, `
-    <p>Hi ${userName || 'there'},</p>
-    ${paragraphs}
-    <p style="margin-top:28px;">Warm regards,<br/>
-       <strong>The Kunga Basics Team</strong></p>
-  `);
-
-  try {
-    const { error } = await resend.emails.send({
-      from:    FROM,
-      to:      [to],
-      subject,
-      html,
-    });
-    if (error) console.error('[Email] Admin email send failed:', error);
-    else       console.log(`[Email] Admin email "${subject}" sent to ${to}`);
-  } catch (err) {
-    console.error('[Email] Network error sending admin email:', err);
-  }
-}
-
-// ─── Welcome email (called after registration) ────────────────────────────────
+// ─── Welcome email ────────────────────────────────────────────────────────────
 
 export async function sendWelcomeEmail(to: string, name: string): Promise<void> {
   const html = layout('Welcome to Kunga Basics! 🌿', `
@@ -159,17 +170,57 @@ export async function sendWelcomeEmail(to: string, name: string): Promise<void> 
     <p>If you have any questions, just reply to this email — we read every message.</p>
     <p>Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
   `);
+  await send(to, 'Welcome to Kunga Basics! 🌿', html);
+}
 
-  try {
-    const { error } = await resend.emails.send({
-      from:    FROM,
-      to:      [to],
-      subject: 'Welcome to Kunga Basics! 🌿',
-      html,
-    });
-    if (error) console.error('[Email] Welcome email send failed:', error);
-    else       console.log(`[Email] Welcome email sent to ${to}`);
-  } catch (err) {
-    console.error('[Email] Network error sending welcome email:', err);
-  }
+// ─── Admin → user direct message ─────────────────────────────────────────────
+
+export async function sendAdminEmail(
+  to: string,
+  userName: string,
+  subject: string,
+  message: string,
+): Promise<void> {
+  const paragraphs = message
+    .split(/\n{2,}/)
+    .map(p => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
+    .join('');
+
+  const html = layout(subject, `
+    <p>Hi ${userName || 'there'},</p>
+    ${paragraphs}
+    <p style="margin-top:28px;">Warm regards,<br/>
+       <strong>The Kunga Basics Team</strong></p>
+  `);
+  await send(to, subject, html);
+}
+
+// ─── Subscription activated notification ─────────────────────────────────────
+
+export async function sendSubscriptionActivatedEmail(
+  to: string,
+  name: string,
+  plan: string,
+): Promise<void> {
+  const planLabel = plan === 'annual' ? 'Annual Plan' : 'Monthly Plan';
+  const html = layout('Your Kunga Basics subscription is active! 🎉', `
+    <p>Hi ${name || 'there'},</p>
+    <p>Great news — your <strong>${planLabel}</strong> subscription is now active! 🎉</p>
+    <p>You now have full access to:</p>
+    <ul style="padding-left:20px;line-height:2;">
+      <li>🎬 All video modules</li>
+      <li>📅 Daily routine & streak tracking</li>
+      <li>📊 Milestone reports & journal</li>
+      <li>🎤 Ask Dr. Gad (2 questions/month)</li>
+    </ul>
+    <p style="text-align:center;margin:28px 0;">
+      <a href="https://app.kungabasics.com"
+         style="background:#0d9488;color:#ffffff;padding:14px 32px;border-radius:8px;
+                text-decoration:none;font-weight:600;font-size:15px;display:inline-block;">
+        Start learning
+      </a>
+    </p>
+    <p>Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
+  `);
+  await send(to, 'Your Kunga Basics subscription is active! 🎉', html);
 }

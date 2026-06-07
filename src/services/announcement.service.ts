@@ -1,30 +1,37 @@
 import { prisma } from '../lib/prisma.js';
 import { sendExpoPush, buildMessages } from '../lib/expo-push.js';
+import { getLang, localizeAnnouncement } from '../lib/i18n.js';
 import type { CreateAnnouncementInput, UpdateAnnouncementInput } from '../models/index.js';
 
 export const AnnouncementService = {
-  async getActive(userId: string) {
+  async getActive(userId: string, req?: any) {
+    const lang = req ? getLang(req) : 'en';
     const dismissed = await prisma.userAnnouncementDismissal.findMany({
       where: { userId },
       select: { announcementId: true },
     });
     const dismissedIds = dismissed.map(d => d.announcementId);
-    return prisma.announcement.findMany({
+    const anns = await prisma.announcement.findMany({
       where: { status: 'PUBLISHED', id: { notIn: dismissedIds } },
       orderBy: { publishedAt: 'desc' },
     });
+    if (lang === 'en') return anns;
+    return anns.map(a => localizeAnnouncement(a, lang));
   },
 
-  async getActiveBanner(userId: string) {
+  async getActiveBanner(userId: string, req?: any) {
+    const lang = req ? getLang(req) : 'en';
     const dismissed = await prisma.userAnnouncementDismissal.findMany({
       where: { userId },
       select: { announcementId: true },
     });
     const dismissedIds = dismissed.map(d => d.announcementId);
-    return prisma.announcement.findFirst({
+    const ann = await prisma.announcement.findFirst({
       where: { status: 'PUBLISHED', id: { notIn: dismissedIds } },
       orderBy: { publishedAt: 'desc' },
     });
+    if (!ann || lang === 'en') return ann;
+    return localizeAnnouncement(ann, lang);
   },
 
   async dismiss(announcementId: string, userId: string) {

@@ -26,7 +26,8 @@ export const config = {
   },
 
   google: {
-    clientId: process.env.GOOGLE_CLIENT_ID ?? '',
+    clientId:    process.env.GOOGLE_CLIENT_ID    ?? '',
+    iosClientId: process.env.GOOGLE_IOS_CLIENT_ID ?? '',
   },
 
   cloudflare: {
@@ -66,6 +67,14 @@ export const config = {
     fromEmail: process.env.RESEND_FROM_EMAIL ?? 'noreply@kungabasics.com',
   },
 
+  smtp: {
+    host:     process.env.SMTP_HOST     ?? 'mail.devemm.rw',
+    port:     Number(process.env.SMTP_PORT ?? 587),
+    user:     process.env.SMTP_USER     ?? 'noreply@devemm.rw',
+    password: process.env.SMTP_PASSWORD ?? '',
+    from:     process.env.SMTP_FROM     ?? 'Kunga Basics <noreply@devemm.rw>',
+  },
+
   redis: {
     url: process.env.REDIS_URL ?? 'redis://localhost:6379',
   },
@@ -77,6 +86,7 @@ export const config = {
 
   app: {
     deepLinkScheme: 'kungabasics',
+    portalUrl:      process.env.PORTAL_URL ?? 'https://portal.kunga.devemm.rw',
     askGadMonthlyLimit: 2,
     streamUrlExpirySecs: 7200, // 2 hours
     serverUrl: process.env.SERVER_URL ?? '', // e.g. https://api.yourdomain.com — used to build public URLs for server-stored files

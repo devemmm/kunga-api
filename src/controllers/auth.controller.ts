@@ -6,6 +6,7 @@ import { uploadToMinio } from '../lib/minio.js';
 import {
   RegisterDto, LoginDto, GoogleAuthDto,
   RefreshTokenDto, ForgotPasswordDto, ResetPasswordDto,
+  MfaVerifyDto, MfaResendDto,
 } from '../models/auth.model.js';
 
 export const AuthController = {
@@ -20,29 +21,78 @@ export const AuthController = {
   },
 
   async login(req: FastifyRequest, reply: FastifyReply) {
-    const body = LoginDto.parse(req.body);
-    const user = await AuthService.login(body);
-    const tokens = generateTokens(req.server as FastifyInstance, user.id, user.role);
+    const body   = LoginDto.parse(req.body);
+    const result = await AuthService.login(req.server as FastifyInstance, body);
 
-    // Log login with IP + user-agent (fire-and-forget, never block the response)
+    // MFA required — return challenge token, not real tokens
+    if (result.mfaRequired) {
+      return reply.send({
+        mfaRequired:  true,
+        mfaToken:     result.mfaToken,
+        maskedEmail:  result.maskedEmail,
+      });
+    }
+
+    const { user } = result;
+    const tokens = generateTokens(req.server as FastifyInstance, user!.id, user!.role);
+
     const ipAddress = ((req.headers['x-forwarded-for'] as string) ?? '').split(',')[0]?.trim() || (req as any).ip || 'unknown';
     const userAgent = (req.headers['user-agent'] as string) ?? '';
+    const clientSource = req.headers['x-client-source'];
+    const details      = clientSource === 'admin-portal' ? 'Admin panel sign-in' : 'App sign-in';
     prisma.activityLog.create({
-      data: { userId: user.id, action: 'user.login', details: 'Admin panel sign-in', ipAddress, userAgent },
-    }).catch(() => {/* non-critical */});
+      data: { userId: user!.id, action: 'user.login', details, ipAddress, userAgent },
+    }).catch(() => {});
 
     return reply.send({
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, subscriptionStatus: user.subscriptionStatus, avatarUrl: user.avatarUrl ?? null },
+      user: { id: user!.id, email: user!.email, name: user!.name, role: user!.role, subscriptionStatus: user!.subscriptionStatus, avatarUrl: user!.avatarUrl ?? null, mfaEnabled: user!.mfaEnabled ?? false },
       ...tokens,
     });
   },
 
+  async verifyMfa(req: FastifyRequest, reply: FastifyReply) {
+    const body   = MfaVerifyDto.parse(req.body);
+    const result = await AuthService.verifyMfa(req.server as FastifyInstance, body);
+    const { user } = result;
+    const tokens = generateTokens(req.server as FastifyInstance, user!.id, user!.role);
+
+    // Log the successful 2FA login (the earlier /login call is not logged for MFA users)
+    const ipAddress    = ((req.headers['x-forwarded-for'] as string) ?? '').split(',')[0]?.trim() || (req as any).ip || 'unknown';
+    const userAgent    = (req.headers['user-agent'] as string) ?? '';
+    const clientSource = req.headers['x-client-source'];
+    const details      = clientSource === 'admin-portal' ? 'Admin panel sign-in' : 'App sign-in';
+    prisma.activityLog.create({
+      data: { userId: user!.id, action: 'user.login', details, ipAddress, userAgent },
+    }).catch(() => {});
+
+    return reply.send({
+      user: { id: user!.id, email: user!.email, name: user!.name, role: user!.role, subscriptionStatus: user!.subscriptionStatus, avatarUrl: user!.avatarUrl ?? null, mfaEnabled: user!.mfaEnabled ?? false },
+      ...tokens,
+    });
+  },
+
+  async resendMfa(req: FastifyRequest, reply: FastifyReply) {
+    const { mfaToken } = MfaResendDto.parse(req.body);
+    return reply.send(await AuthService.resendMfa(req.server as FastifyInstance, mfaToken));
+  },
+
   async googleAuth(req: FastifyRequest, reply: FastifyReply) {
     const body = GoogleAuthDto.parse(req.body);
-    const { user, isNewUser } = await AuthService.googleAuth(body);
+    const { user, isNewUser, childProfile } = await AuthService.googleAuth(body);
     const tokens = generateTokens(req.server as FastifyInstance, user.id, user.role);
     return reply.send({
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, subscriptionStatus: user.subscriptionStatus, isNewUser },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatarUrl: user.avatarUrl,
+        role: user.role,
+        subscriptionStatus: user.subscriptionStatus,
+        isNewUser,
+        // Include childProfile so the mobile app can determine navigation without
+        // a second /me request — null means the user still needs to complete setup
+        childProfile: childProfile ?? null,
+      },
       ...tokens,
     });
   },

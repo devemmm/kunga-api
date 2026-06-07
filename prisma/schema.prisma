@@ -47,6 +47,7 @@ model User {
   announcementDismissals UserAnnouncementDismissal[]
   donations           Donation[]
   scholarshipGrants   ScholarshipGrant[]
+  questionCredits     QuestionCredit[]
 
   @@map("users")
 }
@@ -127,22 +128,46 @@ model Subscription {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
+  questionAddonUsd      Float     @default(0) // extra monthly cost from question credit add-ons
+
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("subscriptions")
 }
 
+// ─── QUESTION CREDITS ─────────────────────────────────────────────────────────
+// Purchased extra questions for Ask Dr. Gad beyond the monthly limit.
+// 1 credit = 1 extra question for the calendar month (monthKey).
+
+model QuestionCredit {
+  id          String   @id @default(cuid())
+  userId      String
+  monthKey    String   // "2026-06" — YYYY-MM; scopes credit to one calendar month
+  credits     Int      @default(1)  // extra questions this purchase unlocks
+  amountUsd   Float
+  status      String   @default("PENDING") // PENDING | ACTIVE | FAILED
+  txRef       String?  @unique
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, monthKey])
+  @@map("question_credits")
+}
+
 // ─── MODULE GROUPS ────────────────────────────────────────────────────────────
 
 model ModuleGroup {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  emoji       String
-  description String?
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
+  id                    String   @id @default(cuid())
+  name                  String   @unique
+  emoji                 String
+  description           String?
+  sortOrder             Int      @default(0)
+  createdAt             DateTime @default(now())
+  nameTranslations      Json?    // { "fr": "...", "rw": "...", "sw": "..." }
+  descriptionTranslations Json?
 
-  modules     Module[]
+  modules               Module[]
 
   @@map("module_groups")
 }
@@ -150,18 +175,21 @@ model ModuleGroup {
 // ─── MODULES ─────────────────────────────────────────────────────────────────
 
 model Module {
-  id            String       @id @default(cuid())
-  groupId       String
-  code          String       @unique  // "C1","T1","L1" etc.
-  title         String
-  emoji         String?      // optional per-module emoji; falls back to group emoji in API
-  description   String?
-  whatToExpect  String?
-  isPreview     Boolean      @default(false)
-  status        ContentStatus @default(DRAFT)
-  sortOrder     Int          @default(0)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id                      String       @id @default(cuid())
+  groupId                 String
+  code                    String       @unique  // "C1","T1","L1" etc.
+  title                   String
+  emoji                   String?      // optional per-module emoji; falls back to group emoji in API
+  description             String?
+  whatToExpect            String?
+  isPreview               Boolean      @default(false)
+  status                  ContentStatus @default(DRAFT)
+  sortOrder               Int          @default(0)
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+  titleTranslations       Json?        // { "fr": "...", "rw": "...", "sw": "..." }
+  descriptionTranslations Json?
+  whatToExpectTranslations Json?
 
   group         ModuleGroup  @relation(fields: [groupId], references: [id])
   videos        Video[]
@@ -184,18 +212,20 @@ enum ResourceType {
 }
 
 model ModuleResource {
-  id          String       @id @default(cuid())
-  moduleId    String
-  title       String
-  type        ResourceType
-  url         String
-  description String?
-  fileSize    Int?         // bytes (optional, for PDFs/docs)
-  pageCount   Int?         // pages (optional, for PDFs/books)
-  sortOrder   Int          @default(0)
-  status      ContentStatus @default(DRAFT)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id                      String       @id @default(cuid())
+  moduleId                String
+  title                   String
+  type                    ResourceType
+  url                     String
+  description             String?
+  fileSize                Int?         // bytes (optional, for PDFs/docs)
+  pageCount               Int?         // pages (optional, for PDFs/books)
+  sortOrder               Int          @default(0)
+  status                  ContentStatus @default(DRAFT)
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+  titleTranslations       Json?        // { "fr": "...", "rw": "...", "sw": "..." }
+  descriptionTranslations Json?
 
   module      Module       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
@@ -214,6 +244,7 @@ model Video {
   id                String       @id @default(cuid())
   moduleId          String
   title             String
+  titleTranslations Json?        // { "fr": "...", "rw": "...", "sw": "..." }
   type              VideoType    @default(EXPLANATION)
   cloudflareStreamId String?     @unique
   hlsUrl            String?
@@ -320,11 +351,11 @@ model MilestoneReport {
   id              String   @id @default(cuid())
   userId          String
   weekStart       String   // YYYY-MM-DD (Monday)
-  responseName    Int      // 1-5
-  eyeContact      Int
-  sitting         Int
-  sounds          Int
-  calmness        Int
+  responseName    Int?     // 1-5 — optional so partial saves are allowed
+  eyeContact      Int?
+  sitting         Int?
+  sounds          Int?
+  calmness        Int?
   notes           String?
   createdAt       DateTime @default(now())
 
@@ -398,10 +429,12 @@ model JournalEntry {
 // ─── ANNOUNCEMENTS ───────────────────────────────────────────────────────────
 
 model Announcement {
-  id              String             @id @default(cuid())
-  title           String
-  body            String
-  deepLink        String?
+  id                String             @id @default(cuid())
+  title             String
+  body              String
+  titleTranslations Json?              // { "fr": "...", "rw": "...", "sw": "..." }
+  bodyTranslations  Json?
+  deepLink          String?
   targetAudience  AnnTarget          @default(ALL_SUBSCRIBERS)
   status          AnnStatus          @default(DRAFT)
   scheduledAt     DateTime?

@@ -8,6 +8,7 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 
 import { config } from './config/index.js';
+import { prisma } from './lib/prisma.js';
 import { parseUA, SERVER_META, nextReqId, formatBytes, isSilentPath } from './lib/logger.js';
 import { authRoutes } from './routes/auth.route.js';
 import { usersRoutes } from './routes/users.route.js';
@@ -280,6 +281,51 @@ Preview modules (\`isPreview: true\`) are always accessible.
   await server.register(webhooksRoutes,      { prefix: `${API}/webhooks` });
   await server.register(adminRoutes,         { prefix: `${API}/admin` });
   await server.register(analyticsRoutes,     { prefix: `${API}/analytics` });
+
+  // ─── APP VERSION CHECK (public — no auth required) ────────────────────────
+  // Mobile app calls this on startup to check for forced/optional updates.
+
+  server.get(`${API}/app/version`, {
+    schema: { tags: ['App'], summary: 'Get min/latest app version for update checks' },
+  }, async (_req, reply) => {
+    try {
+      const rows = await prisma.$queryRaw<Array<{ key: string; value: string }>>`
+        SELECT key, value FROM app_config
+        WHERE key IN ('app_min_version','app_latest_version','app_store_url_ios','app_store_url_android')
+      `;
+      const m = Object.fromEntries(rows.map((r: any) => [r.key, r.value]));
+      return reply.send({
+        minVersion:         m.app_min_version         ?? '1.0.0',
+        latestVersion:      m.app_latest_version      ?? '1.0.0',
+        storeUrlIos:        m.app_store_url_ios        ?? '',
+        storeUrlAndroid:    m.app_store_url_android    ?? '',
+      });
+    } catch {
+      return reply.send({ minVersion: '1.0.0', latestVersion: '1.0.0', storeUrlIos: '', storeUrlAndroid: '' });
+    }
+  });
+
+  // ─── PUBLIC: CONTACT CONFIG (WhatsApp) ────────────────────────────────────
+  // Mobile app reads this on startup to know whether to show the WhatsApp FAB
+  // and which number to dial. No auth required.
+
+  server.get(`${API}/app/contact`, {
+    schema: { tags: ['App'], summary: 'Get WhatsApp contact config for mobile app' },
+  }, async (_req, reply) => {
+    try {
+      const rows = await prisma.$queryRaw<Array<{ key: string; value: string }>>`
+        SELECT key, value FROM app_config
+        WHERE key IN ('whatsapp_enabled', 'whatsapp_number')
+      `;
+      const m = Object.fromEntries(rows.map((r: any) => [r.key, r.value]));
+      return reply.send({
+        enabled: (m.whatsapp_enabled ?? 'true') === 'true',
+        number:  m.whatsapp_number ?? '+250788000000',
+      });
+    } catch {
+      return reply.send({ enabled: true, number: '+250788000000' });
+    }
+  });
 
   // ─── HEALTH & ROOT ─────────────────────────────────────────────────────────
 

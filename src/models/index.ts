@@ -2,6 +2,9 @@ import { z } from 'zod';
 
 // ─── VIDEO ───────────────────────────────────────────────────────────────────
 
+// Reusable i18n translation map
+const TranslationMap = z.record(z.string(), z.string()).optional();
+
 export const CreateVideoDto = z.object({
   moduleId: z.string().cuid(),
   title: z.string().min(2),
@@ -13,6 +16,7 @@ export const CreateVideoDto = z.object({
   isPreviewClip: z.boolean().default(false),
   closedCaptions: z.string().optional(),
   sortOrder: z.number().int().min(0).default(0),
+  titleTranslations: TranslationMap,
 });
 
 export const UpdateVideoDto = CreateVideoDto.partial().extend({
@@ -45,6 +49,8 @@ export const CreateAnnouncementDto = z.object({
     .default('ALL_SUBSCRIBERS'),
   deepLink: z.string().optional(),
   scheduledAt: z.string().datetime({ offset: true }).optional(),
+  titleTranslations: TranslationMap,
+  bodyTranslations:  TranslationMap,
 });
 
 export const UpdateAnnouncementDto = CreateAnnouncementDto.partial();
@@ -79,10 +85,10 @@ export type RevenueCatSyncInput = z.infer<typeof RevenueCatSyncDto>;
 
 export const FlutterwaveInitiateDto = z.object({
   plan: z.enum(['monthly', 'annual']),
-  phone: z.string().min(8),
-  // Accept both canonical and short-form provider names from the mobile app
-  provider: z.enum(['mpesa', 'mtn_momo', 'mtn', 'airtel_money', 'airtel', 'vodacom_mpesa', 'orange', 'orange_money']),
   currency: z.string().length(3).default('USD'),
+  // phone/provider are optional — Flutterwave hosted checkout handles all payment methods
+  phone: z.string().min(8).optional(),
+  provider: z.enum(['mpesa', 'mtn_momo', 'mtn', 'airtel_money', 'airtel', 'vodacom_mpesa', 'orange', 'orange_money']).optional(),
 });
 
 export const StripeCheckoutDto = z.object({

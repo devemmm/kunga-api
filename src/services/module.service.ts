@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import { presignedPut, publicUrl } from '../lib/r2.js';
 import { randomUUID } from 'crypto';
 import path from 'path';
+import { getLang, localizeModule } from '../lib/i18n.js';
 import type {
   CreateModuleInput,
   UpdateModuleInput,
@@ -12,7 +13,8 @@ import type {
 } from '../models/module.model.js';
 
 export const ModuleService = {
-  async getGroups(userId: string, hasSubscription: boolean) {
+  async getGroups(userId: string, hasSubscription: boolean, req?: any) {
+    const lang = req ? getLang(req) : 'en';
     const groups = await prisma.moduleGroup.findMany({
       orderBy: { sortOrder: 'asc' },
       include: {
@@ -28,6 +30,9 @@ export const ModuleService = {
               where: { userId },
               select: { completed: true, watchedPercent: true },
             },
+            _count: {
+              select: { resources: true },
+            },
           },
         },
       },
@@ -35,6 +40,8 @@ export const ModuleService = {
 
     return groups.map(group => ({
       ...group,
+      name: lang !== 'en' && (group as any).nameTranslations ? ((group as any).nameTranslations[lang] || group.name) : group.name,
+      description: lang !== 'en' && (group as any).descriptionTranslations ? ((group as any).descriptionTranslations[lang] || group.description) : group.description,
       modules: group.modules.map(mod => {
         // Compute progress fields the mobile app reads: progressPercent, isCompleted
         const userProgress = (mod.progress as any[])?.[0];
@@ -44,16 +51,26 @@ export const ModuleService = {
         // emoji: use module-level emoji when set, otherwise inherit from parent group
         const emoji = mod.emoji ?? group.emoji ?? '📖';
 
+        // Compute convenience counts for the mobile home card
+        const videosCount      = mod.videos.length;
+        const resourcesCount   = (mod as any)._count?.resources ?? 0;
+        const totalDurationMin = Math.round(
+          mod.videos.reduce((sum, v) => sum + ((v as any).durationSecs ?? 0), 0) / 60
+        );
+
+        const localizedMod = localizeModule({ ...mod, group }, lang);
+
         if (!hasSubscription && !mod.isPreview) {
-          return { ...mod, emoji, videos: [], locked: true, progressPercent, isCompleted };
+          return { ...localizedMod, emoji, videos: [], locked: true, progressPercent, isCompleted, videosCount: 0, resourcesCount: 0, totalDurationMin: 0 };
         }
-        return { ...mod, emoji, locked: false, progressPercent, isCompleted };
+        return { ...localizedMod, emoji, locked: false, progressPercent, isCompleted, videosCount, resourcesCount, totalDurationMin };
       }),
     }));
   },
 
-  async listModules(params: { isAdmin: boolean; search?: string; status?: string; groupId?: string }) {
-    const { isAdmin, search, status, groupId } = params;
+  async listModules(params: { isAdmin: boolean; search?: string; status?: string; groupId?: string; req?: any }) {
+    const { isAdmin, search, status, groupId, req } = params;
+    const lang = req ? getLang(req) : 'en';
     const where: any = isAdmin ? {} : { status: 'PUBLISHED' };
     if (status && isAdmin) where.status = status;
     if (groupId) where.groupId = groupId;
@@ -64,7 +81,7 @@ export const ModuleService = {
         { description: { contains: search, mode: 'insensitive' } },
       ];
     }
-    return prisma.module.findMany({
+    const mods = await prisma.module.findMany({
       where,
       orderBy: [{ group: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
       include: {
@@ -76,6 +93,8 @@ export const ModuleService = {
         _count: { select: { progress: { where: { completed: true } } } },
       },
     });
+    if (lang === 'en') return mods;
+    return mods.map(m => localizeModule(m, lang));
   },
 
   async getModuleAdmin(id: string) {
@@ -111,7 +130,8 @@ export const ModuleService = {
     return { module: { ...mod, resources, avgRating } };
   },
 
-  async getModuleById(id: string, userId: string, hasSubscription: boolean) {
+  async getModuleById(id: string, userId: string, hasSubscription: boolean, req?: any) {
+    const lang = req ? getLang(req) : 'en';
     const mod = await prisma.module.findUnique({
       where: { id },
       include: {
@@ -125,7 +145,7 @@ export const ModuleService = {
     if (!hasSubscription && !mod.isPreview) {
       throw Object.assign(new Error('Subscription required'), { status: 402, locked: true });
     }
-    return { module: mod };
+    return { module: lang === 'en' ? mod : localizeModule(mod, lang) };
   },
 
   async createModule(data: CreateModuleInput) {

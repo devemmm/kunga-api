@@ -8,14 +8,14 @@ export const ModuleController = {
   async getGroups(req: FastifyRequest, reply: FastifyReply) {
     const user = (req as any).currentUser;
     const hasSubscription = ['ACTIVE', 'TRIAL', 'SCHOLARSHIP'].includes(user.subscriptionStatus);
-    const groups = await ModuleService.getGroups(user.id, hasSubscription);
+    const groups = await ModuleService.getGroups(user.id, hasSubscription, req);
     return reply.send({ groups });
   },
 
   async list(req: FastifyRequest, reply: FastifyReply) {
     const user = (req as any).currentUser;
     const { search, status, groupId } = req.query as any;
-    const modules = await ModuleService.listModules({ isAdmin: user.role === 'ADMIN', search, status, groupId });
+    const modules = await ModuleService.listModules({ isAdmin: user.role === 'ADMIN', search, status, groupId, req });
     return reply.send({ modules });
   },
 
@@ -23,7 +23,7 @@ export const ModuleController = {
     const { id } = req.params as { id: string };
     const user = (req as any).currentUser;
     const hasSubscription = ['ACTIVE', 'TRIAL', 'SCHOLARSHIP'].includes(user.subscriptionStatus);
-    return reply.send(await ModuleService.getModuleById(id, user.id, hasSubscription));
+    return reply.send(await ModuleService.getModuleById(id, user.id, hasSubscription, req));
   },
 
   async getAdminDetails(req: FastifyRequest, reply: FastifyReply) {

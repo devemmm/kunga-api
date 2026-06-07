@@ -1,15 +1,22 @@
 import { z } from 'zod';
 
+// Reusable translation map shape: { fr?: string, rw?: string, sw?: string }
+const TranslationMap = z.record(z.string(), z.string()).optional();
+
 export const CreateModuleDto = z.object({
   groupId: z.string().cuid(),
   code: z.string().regex(/^[A-Z]\d+$/, 'Code must be letter + number(s), e.g. C1'),
   title: z.string().min(2),
-  emoji: z.string().optional(),      // optional per-module emoji; falls back to group emoji
+  emoji: z.string().optional(),
   description: z.string().optional(),
   whatToExpect: z.string().optional(),
   isPreview: z.boolean().default(false),
   status: z.enum(['DRAFT', 'PUBLISHED']).default('DRAFT'),
   sortOrder: z.number().int().min(0).default(0),
+  // i18n translation maps — keys are language codes (fr, rw, sw)
+  titleTranslations:       TranslationMap,
+  descriptionTranslations: TranslationMap,
+  whatToExpectTranslations: TranslationMap,
 });
 
 export const UpdateModuleDto = CreateModuleDto.partial();
@@ -19,6 +26,9 @@ export const CreateModuleGroupDto = z.object({
   emoji: z.string().min(1),
   description: z.string().optional(),
   sortOrder: z.number().int().min(0).default(0),
+  // i18n translation maps
+  nameTranslations:        TranslationMap,
+  descriptionTranslations: TranslationMap,
 });
 
 export const ModuleFeedbackDto = z.object({

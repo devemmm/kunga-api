@@ -3,6 +3,9 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { VideoService } from '../services/video.service.js';
 import { SubscriptionService, PaymentService } from '../services/subscription.service.js';
+import { presignedPutMinio } from '../lib/minio.js';
+import { randomUUID } from 'crypto';
+import path from 'path';
 import { DonationService } from '../services/donation.service.js';
 import { AskGadService } from '../services/ask-gad.service.js';
 import { AnnouncementService } from '../services/announcement.service.js';
@@ -29,6 +32,19 @@ export const VideoController = {
   async getUploadUrl(req: FastifyRequest, reply: FastifyReply) {
     const data = VideoUploadUrlDto.parse(req.body);
     return reply.send(await VideoService.getUploadUrl(data));
+  },
+
+  /**
+   * Return a presigned MinIO PUT URL so the browser uploads the video file
+   * DIRECTLY to MinIO — no buffering through the API server.
+   * Query params: ?filename=my-video.mp4&contentType=video/mp4
+   */
+  async getMinioUploadUrl(req: FastifyRequest, reply: FastifyReply) {
+    const { filename = 'video.mp4' } = req.query as { filename?: string };
+    const ext = path.extname(filename).toLowerCase() || '.mp4';
+    const key = `videos/${randomUUID()}${ext}`;
+    const { uploadUrl, fileUrl } = await presignedPutMinio(key, 3600);
+    return reply.send({ uploadUrl, fileUrl, key, expiresIn: 3600 });
   },
   async create(req: FastifyRequest, reply: FastifyReply) {
     const data = CreateVideoDto.parse(req.body);
@@ -58,6 +74,20 @@ export const VideoController = {
     const { id } = req.params as { id: string };
     const data = VideoNoteDto.parse(req.body);
     return reply.status(201).send(await VideoService.addNote(id, user.id, data));
+  },
+
+  async updateNote(req: FastifyRequest, reply: FastifyReply) {
+    const user = (req as any).currentUser;
+    const { noteId } = req.params as { noteId: string };
+    const { noteText } = req.body as { noteText: string };
+    if (!noteText?.trim()) throw Object.assign(new Error('noteText is required'), { status: 400 });
+    return reply.send(await VideoService.updateNote(noteId, user.id, noteText.trim()));
+  },
+
+  async deleteNote(req: FastifyRequest, reply: FastifyReply) {
+    const user = (req as any).currentUser;
+    const { noteId } = req.params as { noteId: string };
+    return reply.send(await VideoService.deleteNote(noteId, user.id));
   },
 };
 
@@ -117,6 +147,11 @@ export const PaymentController = {
     const { provider, status, plan, page, limit } = req.query as any;
     return reply.send(await PaymentService.listMobileMoneyTransactions({ provider, status, plan, page: Number(page ?? 1), limit: Number(limit ?? 20) }));
   },
+  async verifyFlutterwave(req: FastifyRequest, reply: FastifyReply) {
+    const { tx_ref } = req.query as { tx_ref?: string };
+    if (!tx_ref) return reply.status(400).send({ error: 'tx_ref query param is required' });
+    return reply.send(await PaymentService.verifyFlutterwave(tx_ref));
+  },
   async manualActivate(req: FastifyRequest, reply: FastifyReply) {
     const admin = (req as any).currentUser;
     const { txId } = req.params as { txId: string };
@@ -157,8 +192,7 @@ export const DonationController = {
 export const AskGadController = {
   async list(req: FastifyRequest, reply: FastifyReply) {
     const user = (req as any).currentUser;
-    const submissions = await AskGadService.list(user.id);
-    return reply.send({ submissions });
+    return reply.send(await AskGadService.list(user.id)); // { submissions, monthlyLimit }
   },
   async submit(req: FastifyRequest, reply: FastifyReply) {
     const user = (req as any).currentUser;
@@ -186,6 +220,17 @@ export const AskGadController = {
   async getResponseUploadUrl(_req: FastifyRequest, reply: FastifyReply) {
     return reply.send(await AskGadService.getResponseUploadUrl());
   },
+
+  async purchaseCredit(req: FastifyRequest, reply: FastifyReply) {
+    const user = (req as any).currentUser;
+    return reply.status(201).send(await AskGadService.purchaseCredit(user.id));
+  },
+
+  async verifyCredit(req: FastifyRequest, reply: FastifyReply) {
+    const { tx_ref } = req.query as { tx_ref?: string };
+    if (!tx_ref) return reply.status(400).send({ error: 'tx_ref is required' });
+    return reply.send(await AskGadService.verifyCredit(tx_ref));
+  },
 };
 
 // ─── ANNOUNCEMENT CONTROLLER ─────────────────────────────────────────────────
@@ -193,12 +238,12 @@ export const AskGadController = {
 export const AnnouncementController = {
   async getActive(req: FastifyRequest, reply: FastifyReply) {
     const user = (req as any).currentUser;
-    const announcements = await AnnouncementService.getActive(user.id);
+    const announcements = await AnnouncementService.getActive(user.id, req);
     return reply.send({ announcements });
   },
   async getActiveBanner(req: FastifyRequest, reply: FastifyReply) {
     const user = (req as any).currentUser;
-    const banner = await AnnouncementService.getActiveBanner(user.id);
+    const banner = await AnnouncementService.getActiveBanner(user.id, req);
     return reply.send({ banner });
   },
   async dismiss(req: FastifyRequest, reply: FastifyReply) {

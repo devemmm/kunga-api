@@ -11,7 +11,7 @@ export const ChildProfileDto = z.object({
   childName: z.string().min(1),
   dateOfBirth: z.string().datetime({ offset: true }).optional(),
   ageMonths: z.number().int().positive().optional(),
-  challenges: z.array(z.string()).min(1).max(6),
+  challenges: z.array(z.string()).max(6).default([]),
 });
 
 export const ChangePasswordDto = z.object({

@@ -74,6 +74,26 @@ export async function authRoutes(server: FastifyInstance) {
     },
   }, AuthController.resetPassword);
 
+  server.post('/mfa/verify', {
+    schema: {
+      tags: ['Auth'], summary: 'Verify 2FA OTP and exchange for real tokens',
+      body: {
+        type: 'object', required: ['mfaToken', 'otp'],
+        properties: { mfaToken: { type: 'string' }, otp: { type: 'string', minLength: 6, maxLength: 6 } },
+      },
+    },
+  }, AuthController.verifyMfa);
+
+  server.post('/mfa/resend', {
+    schema: {
+      tags: ['Auth'], summary: 'Resend 2FA OTP email',
+      body: {
+        type: 'object', required: ['mfaToken'],
+        properties: { mfaToken: { type: 'string' } },
+      },
+    },
+  }, AuthController.resendMfa);
+
   server.post('/logout', {
     schema: { tags: ['Auth'], summary: 'Logout (client should discard tokens)' },
     preHandler: [requireAuth],

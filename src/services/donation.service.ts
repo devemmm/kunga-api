@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { config } from '../config/index.js';
 import type { InitiateDonationInput, GrantScholarshipInput } from '../models/index.js';
 
 export const DonationService = {
@@ -7,7 +8,34 @@ export const DonationService = {
     let checkoutUrl: string;
 
     if (data.method === 'flutterwave') {
-      checkoutUrl = `https://checkout.flutterwave.com/v3/hosted/pay?tx_ref=${txRef}&amount=${data.amount}&currency=${data.currency}&customer[email]=${data.email}&customizations[title]=Kunga Basics Donation`;
+      try {
+        const flwRes = await fetch('https://api.flutterwave.com/v3/payments', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${config.flutterwave.secretKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            tx_ref:       txRef,
+            amount:       data.amount,
+            currency:     data.currency ?? 'USD',
+            redirect_url: 'kungabasics://donation',
+            customer:     { email: data.email, name: data.donorName ?? data.email },
+            customizations: {
+              title:       'Kunga Basics',
+              description: `Donation – ${data.campaign}`,
+            },
+          }),
+        });
+        const flwData = await flwRes.json() as any;
+        if (!flwRes.ok || flwData.status !== 'success') {
+          throw Object.assign(new Error(flwData?.message ?? 'Payment provider error'), { status: 502 });
+        }
+        checkoutUrl = flwData.data.link;
+      } catch (err: any) {
+        if (err.status) throw err;
+        throw Object.assign(new Error('Failed to connect to payment provider'), { status: 502 });
+      }
     } else {
       // In production: use Stripe PaymentIntents
       checkoutUrl = `https://checkout.stripe.com/c/pay/cs_donation_${txRef}`;
@@ -19,7 +47,7 @@ export const DonationService = {
         currency: data.currency,
         email: data.email,
         donorName: data.donorName,
-        paymentMethod: data.method as any,
+        paymentMethod: data.method.toUpperCase() as any, // Prisma enum: STRIPE | FLUTTERWAVE
         campaign: data.campaign,
         showOnDonorWall: data.showOnDonorWall ?? false,
         status: 'PENDING',

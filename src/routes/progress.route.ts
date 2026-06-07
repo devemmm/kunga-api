@@ -186,10 +186,18 @@ export async function milestonesRoutes(server: FastifyInstance) {
     const user = (req as any).currentUser;
     const body = req.body as any;
 
+    const scores = {
+      responseName: body.responseName ?? null,
+      eyeContact:   body.eyeContact   ?? null,
+      sitting:      body.sitting      ?? null,
+      sounds:       body.sounds       ?? null,
+      calmness:     body.calmness     ?? null,
+      notes:        body.notes        ?? null,
+    };
     const report = await prisma.milestoneReport.upsert({
-      where: { userId_weekStart: { userId: user.id, weekStart: body.weekStart } },
-      update: { responseName: body.responseName, eyeContact: body.eyeContact, sitting: body.sitting, sounds: body.sounds, calmness: body.calmness, notes: body.notes },
-      create: { userId: user.id, weekStart: body.weekStart, responseName: body.responseName, eyeContact: body.eyeContact, sitting: body.sitting, sounds: body.sounds, calmness: body.calmness, notes: body.notes },
+      where:  { userId_weekStart: { userId: user.id, weekStart: body.weekStart } },
+      update: scores,
+      create: { userId: user.id, weekStart: body.weekStart, ...scores },
     });
 
     return reply.send({ report });

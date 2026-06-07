@@ -62,3 +62,27 @@ export async function deleteFromMinio(objectName: string): Promise<void> {
     // non-critical
   }
 }
+
+/**
+ * Generate a presigned PUT URL so the browser can upload directly to MinIO
+ * without routing the file bytes through the API server.
+ *
+ * @param objectName  The key inside the bucket (e.g. "videos/uuid.mp4")
+ * @param expiresIn   Seconds until the URL expires (default 3 600 = 1 hour)
+ * @returns { uploadUrl, fileUrl }
+ */
+export async function presignedPutMinio(
+  objectName: string,
+  expiresIn = 3600,
+): Promise<{ uploadUrl: string; fileUrl: string }> {
+  const client = getMinioClient();
+  const bucket  = config.minio.bucket;
+
+  // MinIO SDK presignedPutObject returns the upload URL
+  const uploadUrl = await client.presignedPutObject(bucket, objectName, expiresIn);
+
+  const base    = config.minio.publicUrl.replace(/\/$/, '');
+  const fileUrl = `${base}/${bucket}/${objectName}`;
+
+  return { uploadUrl, fileUrl };
+}

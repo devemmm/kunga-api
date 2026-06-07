@@ -33,10 +33,14 @@ export async function videosRoutes(server: FastifyInstance) {
   server.patch('/:id', { schema: { tags: ['Videos'], summary: '[Admin] Update video', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, VideoController.update);
   server.delete('/:id', { schema: { tags: ['Videos'], summary: '[Admin] Archive video', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, VideoController.remove);
   server.post('/upload-url', { schema: { tags: ['Videos'], summary: '[Admin] Get Cloudflare Stream upload URL', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, VideoController.getUploadUrl);
+  // Presigned MinIO PUT — browser uploads directly, no buffering through API
+  server.get('/minio-upload-url', { schema: { tags: ['Videos'], summary: '[Admin] Get presigned MinIO PUT URL for direct video upload', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, VideoController.getMinioUploadUrl);
   server.get('/:id/stream', { schema: { tags: ['Videos'], summary: 'Get signed HLS stream URL (preview clips free, full content requires subscription)', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, VideoController.getStreamUrl);
   server.post('/:id/bookmark', { schema: { tags: ['Videos'], summary: 'Toggle bookmark', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, VideoController.bookmark);
-  server.get('/:id/notes', { schema: { tags: ['Videos'], summary: 'Get video notes', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, VideoController.getNotes);
-  server.post('/:id/notes', { schema: { tags: ['Videos'], summary: 'Add video note', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, VideoController.addNote);
+  server.get('/:id/notes',          { schema: { tags: ['Videos'], summary: 'Get video notes',    security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, VideoController.getNotes);
+  server.post('/:id/notes',         { schema: { tags: ['Videos'], summary: 'Add video note',     security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, VideoController.addNote);
+  server.patch('/notes/:noteId',    { schema: { tags: ['Videos'], summary: 'Update video note',  security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, VideoController.updateNote);
+  server.delete('/notes/:noteId',   { schema: { tags: ['Videos'], summary: 'Delete video note',  security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, VideoController.deleteNote);
 }
 
 export async function subscriptionsRoutes(server: FastifyInstance) {
@@ -50,10 +54,11 @@ export async function subscriptionsRoutes(server: FastifyInstance) {
 }
 
 export async function paymentsRoutes(server: FastifyInstance) {
-  server.post('/flutterwave/initiate', { schema: { tags: ['Payments'], summary: 'Initiate Mobile Money checkout', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, PaymentController.initiateFlutterwave);
-  server.get('/flutterwave/callback', { schema: { tags: ['Payments'], summary: 'Flutterwave redirect callback' } }, PaymentController.flutterwaveCallback);
+  server.post('/flutterwave/initiate', { schema: { tags: ['Payments'], summary: 'Create Flutterwave hosted payment link', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, PaymentController.initiateFlutterwave);
+  server.get('/flutterwave/verify', { schema: { tags: ['Payments'], summary: 'Verify Flutterwave payment by tx_ref', security: [{ bearerAuth: [] }], querystring: { type: 'object', required: ['tx_ref'], properties: { tx_ref: { type: 'string' } } } }, preHandler: [requireAuth] }, PaymentController.verifyFlutterwave);
+  server.get('/flutterwave/callback', { schema: { tags: ['Payments'], summary: 'Flutterwave browser redirect callback' } }, PaymentController.flutterwaveCallback);
   server.post('/stripe/create-checkout', { schema: { tags: ['Payments'], summary: 'Create Stripe checkout session', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, PaymentController.stripeCheckout);
-  server.get('/mobile-money', { schema: { tags: ['Payments'], summary: '[Admin] List Mobile Money transactions', security: [{ bearerAuth: [] }], querystring: { type: 'object', properties: { provider: { type: 'string' }, status: { type: 'string' }, plan: { type: 'string' }, page: { type: 'integer' }, limit: { type: 'integer' } } } }, preHandler: [requireAdmin] }, PaymentController.listMobileMoney);
+  server.get('/mobile-money', { schema: { tags: ['Payments'], summary: '[Admin] List Flutterwave transactions', security: [{ bearerAuth: [] }], querystring: { type: 'object', properties: { provider: { type: 'string' }, status: { type: 'string' }, plan: { type: 'string' }, page: { type: 'integer' }, limit: { type: 'integer' } } } }, preHandler: [requireAdmin] }, PaymentController.listMobileMoney);
   server.post('/mobile-money/:txId/activate', { schema: { tags: ['Payments'], summary: '[Admin] Manual activation', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, PaymentController.manualActivate);
 }
 
@@ -74,6 +79,8 @@ export async function askGadRoutes(server: FastifyInstance) {
   server.get('/admin/:id', { schema: { tags: ['Ask Dr. Gad'], summary: '[Admin] Get single submission with full user details', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, AskGadController.getById);
   server.post('/admin/:id/respond', { schema: { tags: ['Ask Dr. Gad'], summary: '[Admin] Respond to submission', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, AskGadController.respond);
   server.get('/admin/response-upload-url', { schema: { tags: ['Ask Dr. Gad'], summary: '[Admin] Get response video upload URL', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, AskGadController.getResponseUploadUrl);
+  server.post('/credits/purchase', { schema: { tags: ['Ask Dr. Gad'], summary: 'Purchase a Question Credit (1 extra question this month)', security: [{ bearerAuth: [] }], body: { type: 'object' } }, preHandler: [requireSubscription] }, AskGadController.purchaseCredit);
+  server.get('/credits/verify', { schema: { tags: ['Ask Dr. Gad'], summary: 'Verify question credit payment', security: [{ bearerAuth: [] }], querystring: { type: 'object', required: ['tx_ref'], properties: { tx_ref: { type: 'string' } } } }, preHandler: [requireAuth] }, AskGadController.verifyCredit);
 }
 
 export async function announcementsRoutes(server: FastifyInstance) {

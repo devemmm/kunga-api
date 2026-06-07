@@ -134,20 +134,91 @@ export const PaymentService = {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
     if (!user) throw Object.assign(new Error('User not found'), { status: 404 });
 
-    const amount = data.plan === 'annual' ? 140 : 14;
-    const txRef = `KB-${userId}-${Date.now()}`;
+    const amount   = data.plan === 'annual' ? 140 : 14;
+    const currency = data.currency ?? 'USD';
+    const txRef    = `KB-${userId}-${Date.now()}`;
 
-    // In production: POST https://api.flutterwave.com/v3/charges?type=mobile_money_...
-    const checkoutUrl = `https://checkout.flutterwave.com/v3/hosted/pay?tx_ref=${txRef}&amount=${amount}&currency=${data.currency}&customer[email]=${user.email}&customizations[title]=Kunga Basics`;
+    // Create a Flutterwave hosted payment link — handles cards, mobile money, bank transfer, etc.
+    let paymentLink: string;
+    try {
+      const flwRes = await fetch('https://api.flutterwave.com/v3/payments', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.flutterwave.secretKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tx_ref:   txRef,
+          amount,
+          currency,
+          redirect_url: config.flutterwave.redirectUrl,
+          meta: { userId, plan: data.plan },
+          customer: { email: user.email, name: user.name ?? user.email },
+          customizations: {
+            title:       'Kunga Basics',
+            description: `${data.plan === 'annual' ? 'Annual' : 'Monthly'} plan – child development program`,
+          },
+        }),
+      });
+      const flwData = await flwRes.json() as any;
+      if (!flwRes.ok || flwData.status !== 'success') {
+        throw Object.assign(new Error(flwData?.message ?? 'Payment provider error'), { status: 502 });
+      }
+      paymentLink = flwData.data.link;
+    } catch (err: any) {
+      if (err.status) throw err; // re-throw our own errors
+      throw Object.assign(new Error('Failed to connect to payment provider'), { status: 502 });
+    }
 
-    // Track pending subscription
+    // Record a pending subscription so we can link the webhook / verify back to the user
     await prisma.subscription.upsert({
-      where: { userId },
-      update: { flutterwaveTxId: txRef, mobileMoneyProvider: data.provider, mobileMoneyPhone: data.phone },
-      create: { userId, plan: data.plan, platform: 'flutterwave', flutterwaveTxId: txRef, mobileMoneyProvider: data.provider, mobileMoneyPhone: data.phone },
+      where:  { userId },
+      update: { flutterwaveTxId: txRef, plan: data.plan, platform: 'flutterwave' },
+      create: { userId, plan: data.plan, platform: 'flutterwave', flutterwaveTxId: txRef },
     });
 
-    return { checkoutUrl, txRef, amount, currency: data.currency };
+    return { paymentLink, txRef, amount, currency };
+  },
+
+  async verifyFlutterwave(txRef: string) {
+    // Belt-and-suspenders: verify the transaction server-side after the app receives the redirect
+    let flwData: any;
+    try {
+      const flwRes = await fetch(
+        `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(txRef)}`,
+        { headers: { 'Authorization': `Bearer ${config.flutterwave.secretKey}` } }
+      );
+      flwData = await flwRes.json();
+    } catch {
+      throw Object.assign(new Error('Could not reach payment provider'), { status: 502 });
+    }
+
+    if (flwData.status !== 'success' || flwData.data?.status !== 'successful') {
+      return { verified: false, paymentStatus: flwData.data?.status ?? 'unknown' };
+    }
+
+    const { amount, id: flwTxId } = flwData.data;
+
+    const subscription = await prisma.subscription.findFirst({ where: { flutterwaveTxId: txRef } });
+    if (!subscription) return { verified: true, activated: false, message: 'No matching subscription found' };
+
+    // Idempotent — skip update if webhook already activated it
+    if (subscription.status === 'ACTIVE') return { verified: true, activated: true, alreadyActive: true };
+
+    const plan      = amount >= 140 ? 'annual' : 'monthly';
+    const periodEnd = new Date();
+    periodEnd.setDate(periodEnd.getDate() + (plan === 'annual' ? 365 : 30));
+
+    await prisma.subscription.update({
+      where: { id: subscription.id },
+      data:  { status: 'ACTIVE', plan, periodEnd, flutterwaveTxId: String(flwTxId) },
+    });
+    await prisma.user.update({
+      where: { id: subscription.userId },
+      data:  { subscriptionStatus: 'ACTIVE' },
+    });
+
+    return { verified: true, activated: true, plan, periodEnd };
   },
 
   async handleFlutterwaveCallback(txRef: string, status: string) {

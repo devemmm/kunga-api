@@ -27,7 +27,17 @@ export const VideoService = {
   async getStreamUrl(videoId: string, userId: string) {
     const video = await prisma.video.findUnique({ where: { id: videoId } });
     if (!video) throw Object.assign(new Error('Video not found'), { status: 404 });
-    if (!video.cloudflareStreamId) throw Object.assign(new Error('Video not yet processed'), { status: 503 });
+
+    // No video source attached yet — return gracefully so the mobile app can
+    // display a friendly "coming soon" state instead of crashing.
+    if (!video.cloudflareStreamId && !video.hlsUrl) {
+      return {
+        streamUrl:  null,
+        hlsUrl:     null,
+        noSource:   true,
+        title:      video.title,
+      };
+    }
 
     // Preview clips are free — only enforce subscription for full content
     if (!video.isPreviewClip) {
@@ -41,8 +51,12 @@ export const VideoService = {
       }
     }
 
-    // In production: generate a signed Cloudflare Stream URL with HMAC
-    // https://developers.cloudflare.com/stream/viewing-videos/securing-your-stream/
+    // Use raw hlsUrl if provided (external CDN / direct upload)
+    if (video.hlsUrl && !video.cloudflareStreamId) {
+      return { streamUrl: video.hlsUrl, hlsUrl: video.hlsUrl, noSource: false, title: video.title };
+    }
+
+    // Cloudflare Stream — build the iframe-friendly URL
     const expiresAt = Math.floor(Date.now() / 1000) + config.app.streamUrlExpirySecs;
     const streamUrl = `https://customer-${config.cloudflare.accountId}.cloudflarestream.com/${video.cloudflareStreamId}/manifest/video.m3u8?token=SIGNED_TOKEN_HERE&expires=${expiresAt}`;
 
@@ -51,7 +65,7 @@ export const VideoService = {
       data: { userId, action: 'video.play', details: `Played video ${video.title}` },
     });
 
-    return { streamUrl, expiresAt, videoId: video.cloudflareStreamId };
+    return { streamUrl, hlsUrl: null, noSource: false, expiresAt, videoId: video.cloudflareStreamId };
   },
 
   async getUploadUrl(data: { moduleId: string; title: string; maxDurationSeconds: number }) {
@@ -113,5 +127,24 @@ export const VideoService = {
   async addNote(videoId: string, userId: string, data: VideoNoteInput) {
     const note = await prisma.videoNote.create({ data: { videoId, userId, ...data } });
     return { note };
+  },
+
+  async updateNote(noteId: string, userId: string, noteText: string) {
+    const existing = await prisma.videoNote.findUnique({ where: { id: noteId } });
+    if (!existing) throw Object.assign(new Error('Note not found'), { status: 404 });
+    if (existing.userId !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+    const note = await prisma.videoNote.update({
+      where: { id: noteId },
+      data:  { noteText },
+    });
+    return { note };
+  },
+
+  async deleteNote(noteId: string, userId: string) {
+    const existing = await prisma.videoNote.findUnique({ where: { id: noteId } });
+    if (!existing) throw Object.assign(new Error('Note not found'), { status: 404 });
+    if (existing.userId !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+    await prisma.videoNote.delete({ where: { id: noteId } });
+    return { message: 'Note deleted' };
   },
 };

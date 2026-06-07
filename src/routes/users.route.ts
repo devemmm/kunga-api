@@ -132,7 +132,7 @@ export async function usersRoutes(server: FastifyInstance) {
         where: { status: 'PUBLISHED' },
         orderBy: { publishedAt: 'desc' },
         take: 15,
-        select: { id: true, title: true, body: true, type: true, publishedAt: true, createdAt: true },
+        select: { id: true, title: true, body: true, publishedAt: true, createdAt: true },
       }),
     ]);
 

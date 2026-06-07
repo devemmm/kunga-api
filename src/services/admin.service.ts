@@ -1,5 +1,43 @@
 import { prisma } from '../lib/prisma.js';
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Parse OS/device from User-Agent string */
+function parseOs(ua: string): string | null {
+  if (!ua) return null;
+  if (/iPhone|iPad/i.test(ua))    return 'iOS';
+  if (/Android/i.test(ua))        return 'Android';
+  if (/Windows/i.test(ua))        return 'Windows';
+  if (/Macintosh|Mac OS/i.test(ua)) return 'macOS';
+  if (/Linux/i.test(ua))          return 'Linux';
+  return 'Unknown';
+}
+
+const _CACHE_TTL = 24 * 60 * 60 * 1000;
+const _PRIVATE   = /^(127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.|::1|localhost)/;
+
+interface CountryInfo { country: string | null; countryCode: string | null; }
+const _ipCache2 = new Map<string, CountryInfo & { ts: number }>();
+
+async function lookupCountry(ip: string | null): Promise<CountryInfo> {
+  if (!ip || _PRIVATE.test(ip)) return { country: null, countryCode: null };
+  const hit = _ipCache2.get(ip);
+  if (hit && Date.now() - hit.ts < _CACHE_TTL) return { country: hit.country, countryCode: hit.countryCode };
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 2000);
+    const res  = await fetch(`http://ip-api.com/json/${ip}?fields=country,countryCode`, { signal: ctrl.signal });
+    clearTimeout(t);
+    const data = await res.json() as any;
+    const info = { country: data?.country ?? null, countryCode: data?.countryCode ?? null };
+    _ipCache2.set(ip, { ...info, ts: Date.now() });
+    return info;
+  } catch {
+    _ipCache2.set(ip, { country: null, countryCode: null, ts: Date.now() });
+    return { country: null, countryCode: null };
+  }
+}
+
 export const AdminService = {
   async getDashboard() {
     const now = new Date();
@@ -48,13 +86,36 @@ export const AdminService = {
     const skip = (page - 1) * limit;
     const [logs, total] = await Promise.all([
       prisma.activityLog.findMany({
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
+        skip, take: limit, orderBy: { createdAt: 'desc' },
       }),
       prisma.activityLog.count(),
     ]);
-    return { logs, total, page, limit };
+
+    // Enrich with user names (single batch query)
+    const userIds = [...new Set(logs.map(l => l.userId).filter(Boolean))] as string[];
+    const users   = await prisma.user.findMany({
+      where:  { id: { in: userIds } },
+      select: { id: true, name: true, email: true, avatarUrl: true },
+    });
+    const userMap = Object.fromEntries(users.map(u => [u.id, u]));
+
+    // Enrich with country (unique IPs only, cached)
+    const uniqueIps = [...new Set(logs.map(l => l.ipAddress).filter(Boolean))] as string[];
+    const geoResults = await Promise.all(uniqueIps.map(lookupCountry));
+    const ipMap      = Object.fromEntries(uniqueIps.map((ip, i) => [ip, geoResults[i]]));
+
+    return {
+      logs: logs.map(l => ({
+        ...l,
+        userName:    l.userId ? (userMap[l.userId]?.name      ?? null) : null,
+        userEmail:   l.userId ? (userMap[l.userId]?.email     ?? null) : null,
+        userAvatar:  l.userId ? (userMap[l.userId]?.avatarUrl ?? null) : null,
+        device:      parseOs(l.userAgent ?? ''),
+        country:     l.ipAddress ? (ipMap[l.ipAddress]?.country     ?? null) : null,
+        countryCode: l.ipAddress ? (ipMap[l.ipAddress]?.countryCode ?? null) : null,
+      })),
+      total, page, limit,
+    };
   },
 
   async getModuleStats() {
@@ -138,16 +199,6 @@ export const AdminService = {
     for (const l of logs) {
       if (l.userId && !logMap[l.userId]) logMap[l.userId] = { ipAddress: l.ipAddress, userAgent: l.userAgent };
     }
-
-    const parseOs = (ua: string) => {
-      if (!ua) return null;
-      if (/Windows/i.test(ua)) return 'Windows';
-      if (/iPhone|iPad/i.test(ua)) return 'iOS';
-      if (/Android/i.test(ua)) return 'Android';
-      if (/Macintosh|Mac OS/i.test(ua)) return 'macOS';
-      if (/Linux/i.test(ua)) return 'Linux';
-      return 'Unknown';
-    };
 
     return {
       users: users.map(u => ({
@@ -302,6 +353,18 @@ const DEFAULT_PRICING: Record<string, { value: string; description: string }> = 
   trial_days:          { value: '7',      description: 'Free trial duration in days' },
   stripe_monthly_price_id: { value: '', description: 'Stripe Price ID for monthly plan' },
   stripe_annual_price_id:  { value: '', description: 'Stripe Price ID for annual plan' },
+  // ── Ask Dr. Gad ──────────────────────────────────────────────────────────────
+  askgad_monthly_limit:    { value: '2',    description: 'Max free questions per user per calendar month' },
+  askgad_credit_price:     { value: '5.00', description: 'Price (USD) for 1 Question Credit (1 extra question)' },
+  askgad_credits_per_pack: { value: '1',    description: 'Extra questions unlocked per credit purchase' },
+  // ── App versions ─────────────────────────────────────────────────────────────
+  app_min_version:         { value: '1.0.0', description: 'Minimum app version — users below this are forced to update' },
+  app_latest_version:      { value: '1.0.0', description: 'Latest app version — users below this see an optional update prompt' },
+  app_store_url_ios:       { value: 'https://apps.apple.com/app/kunga-basics/id000000000', description: 'iOS App Store URL' },
+  app_store_url_android:   { value: 'https://play.google.com/store/apps/details?id=rw.devemm.kunga.basics', description: 'Android Play Store URL' },
+  // ── WhatsApp contact ─────────────────────────────────────────────────────────
+  whatsapp_enabled: { value: 'true',          description: 'Show WhatsApp contact button in the mobile app (true/false)' },
+  whatsapp_number:  { value: '+250788000000', description: 'WhatsApp phone number (E.164 format, e.g. +250788000000)' },
 };
 
 export const PricingService = {

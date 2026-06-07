@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import crypto from 'node:crypto';
 import { SubStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
+import { config } from '../config/index.js';
+import { sendSubscriptionActivatedEmail } from '../lib/email.js';
 
 export async function webhooksRoutes(server: FastifyInstance) {
   /**
@@ -13,7 +15,7 @@ export async function webhooksRoutes(server: FastifyInstance) {
     config: { rawBody: true },
   }, async (req, reply) => {
     const signature = req.headers['verif-hash'] as string;
-    const expectedHash = process.env.FLUTTERWAVE_SECRET_HASH;
+    const expectedHash = config.flutterwave.webhookHash;
 
     if (!signature || signature !== expectedHash) {
       return reply.status(401).send({ error: 'Invalid webhook signature' });
@@ -37,7 +39,9 @@ export async function webhooksRoutes(server: FastifyInstance) {
           update: { status: SubStatus.ACTIVE, flutterwaveTxId: String(flwTxId), platform: 'flutterwave', periodEnd },
           create: { userId, plan, status: SubStatus.ACTIVE, flutterwaveTxId: String(flwTxId), platform: 'flutterwave', periodEnd },
         });
-        await prisma.user.update({ where: { id: userId }, data: { subscriptionStatus: SubStatus.ACTIVE } });
+        const user = await prisma.user.update({ where: { id: userId }, data: { subscriptionStatus: SubStatus.ACTIVE } });
+        // Send subscription confirmation email (best-effort)
+        sendSubscriptionActivatedEmail(user.email, user.name ?? '', plan).catch(() => {});
 
       } else if (tx_ref.startsWith('DON-')) {
         // Donation payment
@@ -45,6 +49,28 @@ export async function webhooksRoutes(server: FastifyInstance) {
           where: { flutterwaveTxId: String(flwTxId) },
           data: { status: 'COMPLETED' },
         });
+
+      } else if (tx_ref.startsWith('QCR-')) {
+        // Question Credit purchase — activate the credit
+        await prisma.questionCredit.updateMany({
+          where: { txRef: tx_ref, status: 'PENDING' },
+          data:  { status: 'ACTIVE' },
+        });
+        // Push notification to user
+        const credit = await prisma.questionCredit.findFirst({ where: { txRef: tx_ref } });
+        if (credit) {
+          const user = await prisma.user.findUnique({ where: { id: credit.userId }, select: { pushToken: true } });
+          if (user?.pushToken) {
+            const { sendExpoPush, buildMessages } = await import('../lib/expo-push.js');
+            await sendExpoPush(buildMessages([user.pushToken], {
+              title:    '🎤 Question Credit activated!',
+              body:     `You can now ask Dr. Gad ${credit.credits} extra question${credit.credits > 1 ? 's' : ''} this month.`,
+              sound:    'default',
+              priority: 'high',
+              data:     { screen: 'AskGad' },
+            }));
+          }
+        }
       }
     }
 

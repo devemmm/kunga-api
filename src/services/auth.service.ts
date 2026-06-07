@@ -2,14 +2,57 @@ import bcrypt from 'bcryptjs';
 import { OAuth2Client } from 'google-auth-library';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
+import { redis } from '../lib/redis.js';
 import { config } from '../config/index.js';
-import { sendPasswordResetEmail, sendWelcomeEmail } from '../lib/email.js';
+import { sendPasswordResetEmail, sendWelcomeEmail, sendOtpEmail } from '../lib/email.js';
 import type {
   RegisterInput,
   LoginInput,
   GoogleAuthInput,
   ResetPasswordInput,
+  MfaVerifyInput,
 } from '../models/auth.model.js';
+
+// ─── MFA helpers ──────────────────────────────────────────────────────────────
+
+const MFA_TTL      = 600;  // OTP valid for 10 minutes
+const MFA_MAX_TRIES = 3;   // lock out after 3 wrong attempts
+
+function generateOtp(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+function mfaKey(userId: string) { return `mfa:otp:${userId}`; }
+
+async function storeMfaOtp(userId: string, otp: string): Promise<void> {
+  await redis.set(mfaKey(userId), JSON.stringify({ otp, attempts: 0 }), 'EX', MFA_TTL);
+}
+
+async function verifyMfaOtp(userId: string, inputOtp: string): Promise<'ok' | 'invalid' | 'expired' | 'locked'> {
+  const raw = await redis.get(mfaKey(userId));
+  if (!raw) return 'expired';
+
+  const record = JSON.parse(raw) as { otp: string; attempts: number };
+
+  if (record.attempts >= MFA_MAX_TRIES) {
+    await redis.del(mfaKey(userId));
+    return 'locked';
+  }
+
+  if (record.otp !== inputOtp) {
+    // Increment attempts, keep same TTL
+    const ttl = await redis.ttl(mfaKey(userId));
+    await redis.set(
+      mfaKey(userId),
+      JSON.stringify({ ...record, attempts: record.attempts + 1 }),
+      'EX', ttl > 0 ? ttl : MFA_TTL,
+    );
+    return 'invalid';
+  }
+
+  await redis.del(mfaKey(userId)); // consume the OTP
+  return 'ok';
+}
 
 const googleClient = new OAuth2Client(config.google.clientId);
 
@@ -50,7 +93,7 @@ export const AuthService = {
     return user;
   },
 
-  async login(data: LoginInput) {
+  async login(server: FastifyInstance, data: LoginInput) {
     const user = await prisma.user.findUnique({ where: { email: data.email } });
     if (!user || !user.passwordHash) {
       throw Object.assign(new Error('Invalid credentials'), { status: 401 });
@@ -60,15 +103,87 @@ export const AuthService = {
     if (!valid) throw Object.assign(new Error('Invalid credentials'), { status: 401 });
 
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-    return user;
+
+    // ── MFA gate ─────────────────────────────────────────────────────────────
+    if (user.mfaEnabled) {
+      const otp = generateOtp();
+      await storeMfaOtp(user.id, otp);
+      sendOtpEmail(user.email, user.name ?? '', otp).catch(() => {});
+
+      // Short-lived challenge token — only usable at /auth/mfa/verify
+      const mfaToken = server.jwt.sign(
+        { sub: user.id, type: 'mfa_challenge', email: user.email },
+        { expiresIn: '10m' },
+      );
+      return { mfaRequired: true, mfaToken, maskedEmail: maskEmail(user.email) };
+    }
+
+    return { mfaRequired: false, user };
+  },
+
+  async verifyMfa(server: FastifyInstance, data: MfaVerifyInput) {
+    // Validate the challenge token
+    let payload: { sub: string; type: string; email: string };
+    try {
+      payload = server.jwt.verify(data.mfaToken) as typeof payload;
+      if (payload.type !== 'mfa_challenge') throw new Error('Wrong token type');
+    } catch {
+      throw Object.assign(new Error('Invalid or expired MFA session. Please log in again.'), { status: 401 });
+    }
+
+    const result = await verifyMfaOtp(payload.sub, data.otp);
+
+    if (result === 'expired') {
+      throw Object.assign(new Error('Verification code has expired. Please log in again.'), { status: 401 });
+    }
+    if (result === 'locked') {
+      throw Object.assign(new Error('Too many incorrect attempts. Please log in again.'), { status: 429 });
+    }
+    if (result === 'invalid') {
+      throw Object.assign(new Error('Incorrect verification code. Please try again.'), { status: 400 });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+    if (!user) throw Object.assign(new Error('User not found'), { status: 404 });
+
+    return { mfaRequired: false, user };
+  },
+
+  async resendMfa(server: FastifyInstance, mfaToken: string) {
+    let payload: { sub: string; type: string; email: string };
+    try {
+      payload = server.jwt.verify(mfaToken) as typeof payload;
+      if (payload.type !== 'mfa_challenge') throw new Error('Wrong token type');
+    } catch {
+      throw Object.assign(new Error('Invalid or expired MFA session. Please log in again.'), { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+    if (!user) throw Object.assign(new Error('User not found'), { status: 404 });
+
+    const otp = generateOtp();
+    await storeMfaOtp(user.id, otp);
+    sendOtpEmail(user.email, user.name ?? '', otp).catch(() => {});
+
+    // Issue a fresh 10-min challenge token
+    const newMfaToken = server.jwt.sign(
+      { sub: user.id, type: 'mfa_challenge', email: user.email },
+      { expiresIn: '10m' },
+    );
+    return { message: 'OTP resent', mfaToken: newMfaToken, maskedEmail: maskEmail(user.email) };
   },
 
   async googleAuth(data: GoogleAuthInput) {
     let ticket;
     try {
+      // Accept tokens issued for the web client OR the iOS native client.
+      // The iOS client (bundle: host.exp.Exponent) generates tokens with
+      // aud = GOOGLE_IOS_CLIENT_ID; the web client uses GOOGLE_CLIENT_ID.
+      const audiences = [config.google.clientId, config.google.iosClientId]
+        .filter(Boolean);
       ticket = await googleClient.verifyIdToken({
         idToken: data.idToken,
-        audience: config.google.clientId,
+        audience: audiences,
       });
     } catch {
       throw Object.assign(new Error('Invalid Google ID token'), { status: 401 });
@@ -101,8 +216,9 @@ export const AuthService = {
       });
     }
 
-    const isNewUser = !(await prisma.childProfile.findUnique({ where: { userId: user.id } }));
-    return { user, isNewUser };
+    const childProfile = await prisma.childProfile.findUnique({ where: { userId: user.id } });
+    const isNewUser = !childProfile;
+    return { user, isNewUser, childProfile };
   },
 
   async forgotPassword(server: FastifyInstance, email: string) {
@@ -191,3 +307,12 @@ export const AuthService = {
     return { message: 'Password changed successfully' };
   },
 };
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Masks an email for display: "emmanuel@gmail.com" → "em***@gmail.com" */
+function maskEmail(email: string): string {
+  const [local, domain] = email.split('@');
+  const visible = local.slice(0, Math.min(2, local.length));
+  return `${visible}***@${domain}`;
+}
