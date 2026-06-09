@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /**
  * Kunga Basics — Comprehensive Database Seed
  * ─────────────────────────────────────────────
