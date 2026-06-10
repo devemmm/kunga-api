@@ -255,7 +255,7 @@ Preview modules (\`isPreview: true\`) are always accessible.
       `⚠  ${status}  ${req.method} ${req.url}  —  ${error.message}  [${req.id}]`,
     );
     return reply.status(status).send({
-      error: error.message ?? 'Internal server error',
+      error: error.message || 'Internal server error',
       statusCode: status,
     });
   });

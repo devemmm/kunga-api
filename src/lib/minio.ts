@@ -14,6 +14,12 @@ function buildClient() {
     useSSL:    url.protocol === 'https:',
     accessKey: config.minio.accessKey,
     secretKey: config.minio.secretKey,
+    // Pin the region so the SDK skips its `getBucketRegion` lookup
+    // (a `GET /bucket?location` request). Behind some reverse proxies
+    // that request comes back as an empty/redirected body, which the
+    // SDK fails to parse as XML and throws an `S3Error` with an empty
+    // `.message` — surfacing to clients as "Thumbnail upload error: ".
+    region: 'us-east-1',
   });
 }
 
