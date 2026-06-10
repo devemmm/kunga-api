@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAuth, requireAdmin, requireSubscription } from '../middleware/auth.js';
 import { ModuleController } from '../controllers/module.controller.js';
-import { VideoController, SubscriptionController, PaymentController, DonationController, AskGadController, AnnouncementController, AdminController, AnalyticsController, PricingController } from '../controllers/index.js';
+import { VideoController, SubscriptionController, PaymentController, DonationController, AskGadController, AnnouncementController, AdminController, AnalyticsController, SiteAnalyticsController, PricingController } from '../controllers/index.js';
 import { NotificationService } from '../services/admin.service.js';
 
 export async function modulesRoutes(server: FastifyInstance) {
@@ -120,4 +120,22 @@ export async function analyticsRoutes(server: FastifyInstance) {
   server.get('/funnel', { schema: { tags: ['Analytics'], summary: 'Subscription funnel', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, AnalyticsController.getFunnel);
   server.get('/retention', { schema: { tags: ['Analytics'], summary: 'Cohort retention', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, AnalyticsController.getRetention);
   server.get('/mobile-money', { schema: { tags: ['Analytics'], summary: 'Mobile Money breakdown', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, AnalyticsController.getMobileMoney);
+
+  // ── Site / visitor analytics ────────────────────────────────────────────
+  // Public tracking beacon — called from the portal site, admin portal, and
+  // mobile app. No auth required (anonymous visitors), rate-limited to
+  // prevent abuse. If a bearer token is present it's used to attach the user.
+  server.post('/track', {
+    schema: { tags: ['Analytics'], summary: 'Record a visitor tracking beacon (pageview / event)' },
+    config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+  }, SiteAnalyticsController.track);
+
+  server.get('/site/overview', { schema: { tags: ['Analytics'], summary: '[Admin] Visitor overview (totals, bounce rate, avg duration)', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, SiteAnalyticsController.getOverview);
+  server.get('/site/geo',      { schema: { tags: ['Analytics'], summary: '[Admin] Visitors by country/city/continent', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, SiteAnalyticsController.getGeo);
+  server.get('/site/devices',  { schema: { tags: ['Analytics'], summary: '[Admin] Browser/OS/device breakdown', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, SiteAnalyticsController.getDevices);
+  server.get('/site/pages',    { schema: { tags: ['Analytics'], summary: '[Admin] Most-visited pages', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, SiteAnalyticsController.getPages);
+  server.get('/site/sources',  { schema: { tags: ['Analytics'], summary: '[Admin] Traffic source breakdown', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, SiteAnalyticsController.getSources);
+  server.get('/site/trends',   { schema: { tags: ['Analytics'], summary: '[Admin] Visitor trends over time', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, SiteAnalyticsController.getTrends);
+  server.get('/site/realtime', { schema: { tags: ['Analytics'], summary: '[Admin] Visitors active right now', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, SiteAnalyticsController.getRealtime);
+  server.get('/site/export',   { schema: { tags: ['Analytics'], summary: '[Admin] Export visitor sessions as CSV', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, SiteAnalyticsController.exportCsv);
 }

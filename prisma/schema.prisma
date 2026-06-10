@@ -48,6 +48,7 @@ model User {
   donations           Donation[]
   scholarshipGrants   ScholarshipGrant[]
   questionCredits     QuestionCredit[]
+  visitorSessions     VisitorSession[]
 
   @@map("users")
 }
@@ -543,4 +544,70 @@ model ActivityLog {
   createdAt DateTime @default(now())
 
   @@map("activity_logs")
+}
+
+// ─── WEBSITE / APP ANALYTICS ─────────────────────────────────────────────────
+
+model VisitorSession {
+  id             String   @id @default(cuid())
+  sessionId      String   @unique
+  userId         String?
+  source         String   // "portal" | "admin" | "mobile"
+
+  firstSeenAt    DateTime @default(now())
+  lastSeenAt     DateTime @default(now())
+  pageViews      Int      @default(0)
+  isBounce       Boolean  @default(true)
+
+  entryPath      String?
+  exitPath       String?
+  referrer       String?
+  utmSource      String?
+  utmMedium      String?
+  utmCampaign    String?
+
+  ip             String?
+  country        String?
+  countryCode    String?
+  region         String?
+  city           String?
+  timezone       String?
+  language       String?
+
+  browser        String?
+  browserVersion String?
+  os             String?
+  osVersion      String?
+  deviceType     String?  // "desktop" | "mobile" | "tablet"
+  screenWidth    Int?
+  screenHeight   Int?
+  appVersion     String?
+
+  user           User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  events         AnalyticsEvent[]
+
+  @@index([source, firstSeenAt])
+  @@index([countryCode])
+  @@index([userId])
+  @@index([lastSeenAt])
+  @@map("visitor_sessions")
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  sessionId String
+  userId    String?
+  source    String   // "portal" | "admin" | "mobile"
+  eventType String   // "pageview" | "click" | "form_submit" | "login" | "logout" | "search" | "upload" | "download" | "video_play" | ...
+  path      String?
+  label     String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  session   VisitorSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+
+  @@index([source, eventType, createdAt])
+  @@index([path])
+  @@index([sessionId])
+  @@map("analytics_events")
 }

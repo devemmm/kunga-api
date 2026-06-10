@@ -10,6 +10,7 @@ import { DonationService } from '../services/donation.service.js';
 import { AskGadService } from '../services/ask-gad.service.js';
 import { AnnouncementService } from '../services/announcement.service.js';
 import { AdminService, AnalyticsService, PricingService } from '../services/admin.service.js';
+import { SiteAnalyticsService } from '../services/siteAnalytics.service.js';
 import {
   CreateVideoDto, UpdateVideoDto, VideoUploadUrlDto, VideoNoteDto,
   OverrideSubscriptionDto, RevenueCatSyncDto,
@@ -318,6 +319,44 @@ export const AnalyticsController = {
   },
   async getMobileMoney(_req: FastifyRequest, reply: FastifyReply) {
     return reply.send(await AnalyticsService.getMobileMoney());
+  },
+};
+
+// ─── SITE / VISITOR ANALYTICS CONTROLLER ─────────────────────────────────────
+
+export const SiteAnalyticsController = {
+  // Public — called by the portal site, admin portal, and mobile app to send
+  // tracking beacons (pageviews, clicks, logins, etc.)
+  async track(req: FastifyRequest, reply: FastifyReply) {
+    const result = await SiteAnalyticsService.track(req, req.body as any);
+    return reply.send(result);
+  },
+  async getOverview(req: FastifyRequest, reply: FastifyReply) {
+    return reply.send(await SiteAnalyticsService.getOverview(req.query));
+  },
+  async getGeo(req: FastifyRequest, reply: FastifyReply) {
+    return reply.send(await SiteAnalyticsService.getGeo(req.query));
+  },
+  async getDevices(req: FastifyRequest, reply: FastifyReply) {
+    return reply.send(await SiteAnalyticsService.getDevices(req.query));
+  },
+  async getPages(req: FastifyRequest, reply: FastifyReply) {
+    return reply.send(await SiteAnalyticsService.getPages(req.query));
+  },
+  async getSources(req: FastifyRequest, reply: FastifyReply) {
+    return reply.send(await SiteAnalyticsService.getSources(req.query));
+  },
+  async getTrends(req: FastifyRequest, reply: FastifyReply) {
+    return reply.send(await SiteAnalyticsService.getTrends(req.query));
+  },
+  async getRealtime(req: FastifyRequest, reply: FastifyReply) {
+    return reply.send(await SiteAnalyticsService.getRealtime(req.query));
+  },
+  async exportCsv(req: FastifyRequest, reply: FastifyReply) {
+    const csv = await SiteAnalyticsService.exportCsv(req.query);
+    reply.header('Content-Type', 'text/csv');
+    reply.header('Content-Disposition', `attachment; filename="visitor-analytics-${new Date().toISOString().slice(0, 10)}.csv"`);
+    return reply.send(csv);
   },
 };
 

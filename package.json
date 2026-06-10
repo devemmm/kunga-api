@@ -29,6 +29,7 @@
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.13.0",
     "fastify": "^4.28.1",
+    "geoip-lite": "^1.4.10",
     "google-auth-library": "^9.14.1",
     "ioredis": "^5.4.1",
     "minio": "^8.0.7",
@@ -37,6 +38,7 @@
     "pino-pretty": "^11.2.2",
     "pino-roll": "^4.0.0",
     "resend": "^4.0.1",
+    "ua-parser-js": "^2.0.10",
     "zod": "^3.23.8"
   },
   "devDependencies": {
