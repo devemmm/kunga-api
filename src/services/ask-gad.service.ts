@@ -84,8 +84,14 @@ export const AskGadService = {
     const hasCredit    = (activeCredits._sum.credits ?? 0) > 0;
     const effectiveLimit = hasCredit ? 9999 : monthlyLimit;
 
+    const withUrls = submissions.map((s) => ({
+      ...s,
+      videoUrl: minioPublicUrl(s.videoR2Key),
+      responseVideoUrl: minioPublicUrl(s.responseVideoR2Key),
+    }));
+
     return {
-      submissions,
+      submissions: withUrls,
       monthlyLimit,
       hasCredit,
       effectiveLimit,
