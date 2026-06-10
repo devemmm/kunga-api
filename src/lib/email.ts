@@ -44,10 +44,18 @@ function layout(title: string, body: string): string {
              style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
         <!-- Header -->
         <tr>
-          <td style="background:#0d3b36;padding:28px 32px;">
-            <span style="font-size:24px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">
-              🌿 Kunga Basics
-            </span>
+          <td style="background:#0d3b36;padding:24px 32px;">
+            <table cellpadding="0" cellspacing="0"><tr>
+              <td style="vertical-align:middle;padding-right:10px;">
+                <img src="https://portal.kungabasics.com/icon.png" alt="Kunga Basics"
+                     width="32" height="32" style="display:block;border-radius:6px;" />
+              </td>
+              <td style="vertical-align:middle;">
+                <span style="font-size:24px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">
+                  Kunga Basics
+                </span>
+              </td>
+            </tr></table>
           </td>
         </tr>
         <!-- Body -->
@@ -223,4 +231,146 @@ export async function sendSubscriptionActivatedEmail(
     <p>Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
   `);
   await send(to, 'Your Kunga Basics subscription is active! 🎉', html);
+}
+
+// ─── Subscription cancelled / restored ────────────────────────────────────────
+
+export async function sendSubscriptionCancelledEmail(
+  to: string,
+  name: string,
+): Promise<void> {
+  const html = layout('Your Kunga Basics subscription was cancelled', `
+    <p>Hi ${name || 'there'},</p>
+    <p>Your Kunga Basics subscription has been <strong>cancelled</strong>.
+       You'll keep access until the end of your current billing period,
+       after which premium features will no longer be available.</p>
+    <p>Changed your mind? You can resubscribe any time from the app.</p>
+    <p style="text-align:center;margin:28px 0;">
+      <a href="https://app.kungabasics.com"
+         style="background:#0d9488;color:#ffffff;padding:14px 32px;border-radius:8px;
+                text-decoration:none;font-weight:600;font-size:15px;display:inline-block;">
+        Open the app
+      </a>
+    </p>
+    <p>Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
+  `);
+  await send(to, 'Your Kunga Basics subscription was cancelled', html);
+}
+
+export async function sendSubscriptionRestoredEmail(
+  to: string,
+  name: string,
+): Promise<void> {
+  const html = layout('Your Kunga Basics subscription is back! 🎉', `
+    <p>Hi ${name || 'there'},</p>
+    <p>Good news — your Kunga Basics subscription has been <strong>restored</strong>
+       and you have full access again. 🎉</p>
+    <p style="text-align:center;margin:28px 0;">
+      <a href="https://app.kungabasics.com"
+         style="background:#0d9488;color:#ffffff;padding:14px 32px;border-radius:8px;
+                text-decoration:none;font-weight:600;font-size:15px;display:inline-block;">
+        Open the app
+      </a>
+    </p>
+    <p>Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
+  `);
+  await send(to, 'Your Kunga Basics subscription is back! 🎉', html);
+}
+
+// ─── Ask Dr. Gad — response ready ─────────────────────────────────────────────
+
+export async function sendAskGadResponseEmail(
+  to: string,
+  name: string,
+): Promise<void> {
+  const html = layout('Dr. Gad has responded to your question 🎤', `
+    <p>Hi ${name || 'there'},</p>
+    <p>Dr. Gad has just responded to the question you submitted. 🎤</p>
+    <p>Open the app and head to <strong>Ask Dr. Gad</strong> to watch the response.</p>
+    <p style="text-align:center;margin:28px 0;">
+      <a href="https://app.kungabasics.com"
+         style="background:#0d9488;color:#ffffff;padding:14px 32px;border-radius:8px;
+                text-decoration:none;font-weight:600;font-size:15px;display:inline-block;">
+        View response
+      </a>
+    </p>
+    <p>Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
+  `);
+  await send(to, 'Dr. Gad has responded to your question 🎤', html);
+}
+
+// ─── Donation receipt ──────────────────────────────────────────────────────────
+
+export async function sendDonationReceiptEmail(
+  to: string,
+  donorName: string,
+  amountUsd: number,
+  currency: string,
+  campaign: string,
+): Promise<void> {
+  const html = layout('Thank you for your donation 💚', `
+    <p>Hi ${donorName || 'there'},</p>
+    <p>Thank you so much for your generous donation of
+       <strong>${currency} ${amountUsd.toFixed(2)}</strong> to
+       <strong>${campaign}</strong>. 💚</p>
+    <p>Your support helps us bring expert guidance and developmental tools
+       to families who need them most.</p>
+    <p style="font-size:13px;color:#6b7280;">
+      Please keep this email for your records as confirmation of your donation.
+    </p>
+    <p>With gratitude,<br/><strong>The Kunga Basics Team</strong></p>
+  `);
+  await send(to, 'Thank you for your donation 💚', html);
+}
+
+// ─── Scholarship granted ───────────────────────────────────────────────────────
+
+export async function sendScholarshipGrantedEmail(
+  to: string,
+  name: string,
+): Promise<void> {
+  const html = layout('You’ve been granted a Kunga Basics scholarship! 🎓', `
+    <p>Hi ${name || 'there'},</p>
+    <p>We're delighted to let you know that you've been granted a
+       <strong>full scholarship</strong> to Kunga Basics! 🎓</p>
+    <p>You now have complete access to:</p>
+    <ul style="padding-left:20px;line-height:2;">
+      <li>🎬 All video modules</li>
+      <li>📅 Daily routine & streak tracking</li>
+      <li>📊 Milestone reports & journal</li>
+      <li>🎤 Ask Dr. Gad</li>
+    </ul>
+    <p style="text-align:center;margin:28px 0;">
+      <a href="https://app.kungabasics.com"
+         style="background:#0d9488;color:#ffffff;padding:14px 32px;border-radius:8px;
+                text-decoration:none;font-weight:600;font-size:15px;display:inline-block;">
+        Start learning
+      </a>
+    </p>
+    <p>Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
+  `);
+  await send(to, 'You’ve been granted a Kunga Basics scholarship! 🎓', html);
+}
+
+// ─── Announcement broadcast ────────────────────────────────────────────────────
+
+export async function sendAnnouncementEmail(
+  to: string,
+  name: string,
+  title: string,
+  body: string,
+): Promise<void> {
+  const html = layout(title, `
+    <p>Hi ${name || 'there'},</p>
+    <p>${body.replace(/\n/g, '<br/>')}</p>
+    <p style="text-align:center;margin:28px 0;">
+      <a href="https://app.kungabasics.com"
+         style="background:#0d9488;color:#ffffff;padding:14px 32px;border-radius:8px;
+                text-decoration:none;font-weight:600;font-size:15px;display:inline-block;">
+        Open the app
+      </a>
+    </p>
+    <p>Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
+  `);
+  await send(to, title, html);
 }
