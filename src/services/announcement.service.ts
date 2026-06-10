@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { sendExpoPush, buildMessages } from '../lib/expo-push.js';
+import { sendAnnouncementEmail } from '../lib/email.js';
 import { getLang, localizeAnnouncement } from '../lib/i18n.js';
 import type { CreateAnnouncementInput, UpdateAnnouncementInput } from '../models/index.js';
 
@@ -71,6 +72,7 @@ export const AnnouncementService = {
       data: { status: 'PUBLISHED', publishedAt: new Date() },
     });
     await AnnouncementService._sendPushNotification(announcement);
+    await AnnouncementService._sendEmailNotification(announcement);
     return { announcement, sent: true };
   },
 
@@ -158,5 +160,17 @@ export const AnnouncementService = {
     }));
 
     return { sent: tokens.length };
+  },
+
+  /** Email URGENT announcements to users who have email notifications enabled. */
+  async _sendEmailNotification(announcement: any) {
+    const users = await prisma.user.findMany({
+      where: { preferences: { is: { announcementsOn: true } } },
+      select: { email: true, name: true },
+    });
+    for (const user of users) {
+      sendAnnouncementEmail(user.email, user.name ?? '', announcement.title, announcement.body).catch(() => {});
+    }
+    return { sent: users.length };
   },
 };

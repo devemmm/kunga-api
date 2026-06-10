@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { SubStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { config } from '../config/index.js';
-import { sendSubscriptionActivatedEmail } from '../lib/email.js';
+import { sendSubscriptionActivatedEmail, sendDonationReceiptEmail } from '../lib/email.js';
 
 export async function webhooksRoutes(server: FastifyInstance) {
   /**
@@ -49,6 +49,10 @@ export async function webhooksRoutes(server: FastifyInstance) {
           where: { flutterwaveTxId: String(flwTxId) },
           data: { status: 'COMPLETED' },
         });
+        const donation = await prisma.donation.findFirst({ where: { flutterwaveTxId: String(flwTxId) } });
+        if (donation) {
+          sendDonationReceiptEmail(donation.email, donation.donorName ?? '', donation.amountUsd, donation.currency, donation.campaign ?? 'Kunga Basics').catch(() => {});
+        }
 
       } else if (tx_ref.startsWith('QCR-')) {
         // Question Credit purchase — activate the credit
@@ -120,6 +124,10 @@ export async function webhooksRoutes(server: FastifyInstance) {
           where: { stripePaymentIntentId: pi.id },
           data: { status: 'COMPLETED' },
         });
+        const donation = await prisma.donation.findFirst({ where: { stripePaymentIntentId: pi.id } });
+        if (donation) {
+          sendDonationReceiptEmail(donation.email, donation.donorName ?? '', donation.amountUsd, donation.currency, donation.campaign ?? 'Kunga Basics').catch(() => {});
+        }
       }
     }
 

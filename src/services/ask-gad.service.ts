@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import { config } from '../config/index.js';
 import { presignedPutMinio, minioPublicUrl } from '../lib/minio.js';
 import { sendExpoPush, buildMessages } from '../lib/expo-push.js';
+import { sendAskGadResponseEmail } from '../lib/email.js';
 import type { AskGadSubmissionInput, AskGadResponseInput } from '../models/index.js';
 
 // ─── Config helper ────────────────────────────────────────────────────────────
@@ -256,7 +257,11 @@ export const AskGadService = {
   async respond(id: string, data: AskGadResponseInput) {
     const submission = await prisma.askGadSubmission.findUnique({
       where: { id },
-      include: { user: { select: { pushToken: true, name: true } } },
+      include: {
+        user: {
+          select: { pushToken: true, name: true, email: true, preferences: { select: { drGadResponseOn: true } } },
+        },
+      },
     });
     if (!submission) throw Object.assign(new Error('Submission not found'), { status: 404 });
 
@@ -272,6 +277,9 @@ export const AskGadService = {
         sound: 'default', priority: 'high',
         data:  { screen: 'AskGad', submissionId: id },
       }));
+    }
+    if (submission.user.preferences?.drGadResponseOn !== false) {
+      sendAskGadResponseEmail(submission.user.email, submission.user.name ?? '').catch(() => {});
     }
     await prisma.activityLog.create({
       data: { userId: submission.userId, action: 'askgad.responded', details: `Dr. Gad responded to submission ${id}` },

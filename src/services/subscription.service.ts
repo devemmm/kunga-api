@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { config } from '../config/index.js';
+import { sendSubscriptionCancelledEmail, sendSubscriptionRestoredEmail } from '../lib/email.js';
 import type { OverrideSubscriptionInput, RevenueCatSyncInput, FlutterwaveInitiateInput, StripeCheckoutInput } from '../models/index.js';
 
 export const SubscriptionService = {
@@ -85,8 +86,9 @@ export const SubscriptionService = {
 
   async cancel(userId: string, adminId: string) {
     await prisma.subscription.update({ where: { userId }, data: { status: 'CANCELLED', cancelledAt: new Date() } });
-    await prisma.user.update({ where: { id: userId }, data: { subscriptionStatus: 'CANCELLED' } });
+    const user = await prisma.user.update({ where: { id: userId }, data: { subscriptionStatus: 'CANCELLED' } });
     await prisma.activityLog.create({ data: { userId, adminId, action: 'admin.subscription.cancel' } });
+    sendSubscriptionCancelledEmail(user.email, user.name ?? '').catch(() => {});
     return { message: 'Subscription cancelled' };
   },
 
@@ -95,8 +97,9 @@ export const SubscriptionService = {
       where: { userId },
       data: { status: 'ACTIVE', cancelledAt: null, periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
     });
-    await prisma.user.update({ where: { id: userId }, data: { subscriptionStatus: 'ACTIVE' } });
+    const user = await prisma.user.update({ where: { id: userId }, data: { subscriptionStatus: 'ACTIVE' } });
     await prisma.activityLog.create({ data: { userId, adminId, action: 'admin.subscription.restore' } });
+    sendSubscriptionRestoredEmail(user.email, user.name ?? '').catch(() => {});
     return { message: 'Subscription restored' };
   },
 

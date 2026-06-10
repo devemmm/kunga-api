@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { config } from '../config/index.js';
+import { sendScholarshipGrantedEmail } from '../lib/email.js';
 import type { InitiateDonationInput, GrantScholarshipInput } from '../models/index.js';
 
 export const DonationService = {
@@ -109,6 +110,7 @@ export const DonationService = {
         update: { status: 'SCHOLARSHIP', platform: 'scholarship' },
         create: { userId: user.id, plan: 'scholarship', status: 'SCHOLARSHIP', platform: 'scholarship' },
       });
+      sendScholarshipGrantedEmail(user.email, user.name ?? '').catch(() => {});
     }
 
     return { grant };
