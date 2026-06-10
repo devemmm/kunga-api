@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { config } from '../config/index.js';
-import { presignedPutMinio } from '../lib/minio.js';
+import { presignedPutMinio, minioPublicUrl } from '../lib/minio.js';
 import { sendExpoPush, buildMessages } from '../lib/expo-push.js';
 import type { AskGadSubmissionInput, AskGadResponseInput } from '../models/index.js';
 
@@ -214,7 +214,12 @@ export const AskGadService = {
       }),
       prisma.askGadSubmission.count({ where }),
     ]);
-    return { submissions, total, page, limit };
+    const withUrls = submissions.map((s) => ({
+      ...s,
+      videoUrl: minioPublicUrl(s.videoR2Key),
+      responseVideoUrl: minioPublicUrl(s.responseVideoR2Key),
+    }));
+    return { submissions: withUrls, total, page, limit };
   },
 
   async getById(id: string) {
@@ -233,7 +238,13 @@ export const AskGadService = {
       },
     });
     if (!submission) throw Object.assign(new Error('Submission not found'), { status: 404 });
-    return { submission };
+    return {
+      submission: {
+        ...submission,
+        videoUrl: minioPublicUrl(submission.videoR2Key),
+        responseVideoUrl: minioPublicUrl(submission.responseVideoR2Key),
+      },
+    };
   },
 
   async respond(id: string, data: AskGadResponseInput) {

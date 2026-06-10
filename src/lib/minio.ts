@@ -53,6 +53,19 @@ export async function uploadToMinio(
 }
 
 /**
+ * Build the public URL for an object already stored in MinIO, given its key.
+ *
+ * @param objectName  The key inside the bucket (e.g. "ask-gad/submissions/uuid.mp4")
+ * @returns Public URL, or null if objectName is falsy.
+ */
+export function minioPublicUrl(objectName?: string | null): string | null {
+  if (!objectName) return null;
+  const base   = config.minio.publicUrl.replace(/\/$/, '');
+  const bucket = config.minio.bucket;
+  return `${base}/${bucket}/${objectName}`;
+}
+
+/**
  * Delete an object from MinIO by its object key.
  */
 export async function deleteFromMinio(objectName: string): Promise<void> {
