@@ -348,7 +348,7 @@ Preview modules (\`isPreview: true\`) are always accessible.
       port:    config.port,
       ...SERVER_META,
     },
-    `🌿 Kunga Basics API  |  ${config.env.toUpperCase()}  |  ` +
+    `Kunga Basics API  |  ${config.env.toUpperCase()}  |  ` +
     `port:${config.port}  node:${SERVER_META.nodeVersion}  ` +
     `host:${SERVER_META.serverOS} (${SERVER_META.arch})  ` +
     `mem:${SERVER_META.memoryMB} MB  cpus:${SERVER_META.cpus}`,

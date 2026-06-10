@@ -158,7 +158,7 @@ export async function sendPasswordResetEmail(
 // ─── Welcome email ────────────────────────────────────────────────────────────
 
 export async function sendWelcomeEmail(to: string, name: string): Promise<void> {
-  const html = layout('Welcome to Kunga Basics! 🌿', `
+  const html = layout('Welcome to Kunga Basics!', `
     <p>Hi ${name || 'there'},</p>
     <p>Welcome to <strong>Kunga Basics</strong> — we're so glad you're here. 💚</p>
     <p>Here's what you can do right away:</p>
@@ -178,7 +178,7 @@ export async function sendWelcomeEmail(to: string, name: string): Promise<void> 
     <p>If you have any questions, just reply to this email — we read every message.</p>
     <p>Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
   `);
-  await send(to, 'Welcome to Kunga Basics! 🌿', html);
+  await send(to, 'Welcome to Kunga Basics!', html);
 }
 
 // ─── Admin → user direct message ─────────────────────────────────────────────
