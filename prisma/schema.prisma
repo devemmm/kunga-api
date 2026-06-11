@@ -418,6 +418,9 @@ model JournalEntry {
   id         String   @id @default(cuid())
   userId     String
   date       String   // YYYY-MM-DD
+  title      String?
+  mood       String?  // great | good | okay | tough | hard
+  tags       String[] @default([])
   noteText   String?
   photoR2Key String?
   createdAt  DateTime @default(now())

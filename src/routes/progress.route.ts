@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth, requireAdmin, requireSubscription } from '../middleware/auth.js';
+import { JournalEntryDto } from '../models/index.js';
 
 // ─── PROGRESS ────────────────────────────────────────────────────────────────
 
@@ -252,12 +253,12 @@ export async function journalRoutes(server: FastifyInstance) {
     preHandler: [requireSubscription],
   }, async (req, reply) => {
     const user = (req as any).currentUser;
-    const body = req.body as any;
+    const body = JournalEntryDto.parse(req.body);
 
     const entry = await prisma.journalEntry.upsert({
       where: { userId_date: { userId: user.id, date: body.date } },
-      update: { noteText: body.noteText, photoR2Key: body.photoR2Key },
-      create: { userId: user.id, date: body.date, noteText: body.noteText, photoR2Key: body.photoR2Key },
+      update: { title: body.title, mood: body.mood, tags: body.tags, noteText: body.noteText, photoR2Key: body.photoR2Key },
+      create: { userId: user.id, date: body.date, title: body.title, mood: body.mood, tags: body.tags ?? [], noteText: body.noteText, photoR2Key: body.photoR2Key },
     });
 
     return reply.status(201).send({ entry });

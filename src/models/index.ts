@@ -158,8 +158,11 @@ export const SyncRoutineDto = z.object({
 });
 
 export const JournalEntryDto = z.object({
-  // DB fields: date (YYYY-MM-DD), noteText, photoR2Key — one entry per user per day
+  // DB fields: date (YYYY-MM-DD), title, mood, tags, noteText, photoR2Key — one entry per user per day
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  title: z.string().max(120).optional(),
+  mood: z.enum(['great', 'good', 'okay', 'tough', 'hard']).optional(),
+  tags: z.array(z.string().max(30)).max(10).optional(),
   noteText: z.string().max(5000).optional(),
   photoR2Key: z.string().optional(),
 });
