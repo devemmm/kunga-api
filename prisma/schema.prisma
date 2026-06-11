@@ -164,6 +164,7 @@ model ModuleGroup {
   emoji                 String
   description           String?
   sortOrder             Int      @default(0)
+  status                ContentStatus @default(PUBLISHED)
   createdAt             DateTime @default(now())
   nameTranslations      Json?    // { "fr": "...", "rw": "...", "sw": "..." }
   descriptionTranslations Json?
@@ -221,6 +222,7 @@ model ModuleResource {
   description             String?
   fileSize                Int?         // bytes (optional, for PDFs/docs)
   pageCount               Int?         // pages (optional, for PDFs/books)
+  isPreviewClip           Boolean      @default(false)
   sortOrder               Int          @default(0)
   status                  ContentStatus @default(DRAFT)
   createdAt               DateTime     @default(now())

@@ -26,6 +26,7 @@ export const CreateModuleGroupDto = z.object({
   emoji: z.string().min(1),
   description: z.string().optional(),
   sortOrder: z.number().int().min(0).default(0),
+  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
   // i18n translation maps
   nameTranslations:        TranslationMap,
   descriptionTranslations: TranslationMap,
@@ -44,6 +45,7 @@ export const CreateResourceDto = z.object({
   description: z.string().optional(),
   fileSize: z.number().int().positive().optional(),
   pageCount: z.number().int().positive().optional(),
+  isPreviewClip: z.boolean().default(false),
   sortOrder: z.number().int().min(0).default(0),
   status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).default('DRAFT'),
 });

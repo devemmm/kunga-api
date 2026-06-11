@@ -16,6 +16,7 @@ export const ModuleService = {
   async getGroups(userId: string, hasSubscription: boolean, req?: any) {
     const lang = req ? getLang(req) : 'en';
     const groups = await prisma.moduleGroup.findMany({
+      where: { status: 'PUBLISHED' },
       orderBy: { sortOrder: 'asc' },
       include: {
         modules: {
@@ -202,6 +203,16 @@ export const ModuleService = {
     return { message: 'Group deleted' };
   },
 
+  async archiveGroup(id: string) {
+    const group = await prisma.moduleGroup.update({ where: { id }, data: { status: 'ARCHIVED' } });
+    return { group };
+  },
+
+  async unarchiveGroup(id: string) {
+    const group = await prisma.moduleGroup.update({ where: { id }, data: { status: 'PUBLISHED' } });
+    return { group };
+  },
+
   async submitFeedback(moduleId: string, userId: string, data: ModuleFeedbackInput) {
     const feedback = await prisma.moduleFeedback.upsert({
       where: { userId_moduleId: { userId, moduleId } },
@@ -213,12 +224,20 @@ export const ModuleService = {
 
   // ─── Resources ──────────────────────────────────────────────────────────────
 
-  async listResources(moduleId: string) {
+  async listResources(moduleId: string, isAdmin: boolean, hasSubscription: boolean) {
     const resources = await (prisma as any).moduleResource.findMany({
-      where: { moduleId },
+      where: isAdmin ? { moduleId } : { moduleId, status: 'PUBLISHED' },
       orderBy: { sortOrder: 'asc' },
     });
-    return { resources };
+
+    if (isAdmin || hasSubscription) return { resources };
+
+    // Free users only get the file/link for resources flagged as a free preview
+    return {
+      resources: resources.map((r: any) =>
+        r.isPreviewClip ? r : { ...r, url: null, fileSize: null, locked: true }
+      ),
+    };
   },
 
   async createResource(moduleId: string, data: CreateResourceInput) {

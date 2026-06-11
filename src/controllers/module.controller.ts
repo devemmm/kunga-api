@@ -78,6 +78,16 @@ export const ModuleController = {
     return reply.send(await ModuleService.deleteGroup(id));
   },
 
+  async archiveGroup(req: FastifyRequest, reply: FastifyReply) {
+    const { id } = req.params as { id: string };
+    return reply.send(await ModuleService.archiveGroup(id));
+  },
+
+  async unarchiveGroup(req: FastifyRequest, reply: FastifyReply) {
+    const { id } = req.params as { id: string };
+    return reply.send(await ModuleService.unarchiveGroup(id));
+  },
+
   async submitFeedback(req: FastifyRequest, reply: FastifyReply) {
     const user = (req as any).currentUser;
     const { moduleId } = req.params as { moduleId: string };
@@ -87,7 +97,10 @@ export const ModuleController = {
 
   async listResources(req: FastifyRequest, reply: FastifyReply) {
     const { moduleId } = req.params as { moduleId: string };
-    return reply.send(await ModuleService.listResources(moduleId));
+    const user = (req as any).currentUser;
+    const isAdmin = user?.role === 'ADMIN';
+    const hasSubscription = ['ACTIVE', 'TRIAL', 'SCHOLARSHIP'].includes(user?.subscriptionStatus);
+    return reply.send(await ModuleService.listResources(moduleId, isAdmin, hasSubscription));
   },
 
   async createResource(req: FastifyRequest, reply: FastifyReply) {

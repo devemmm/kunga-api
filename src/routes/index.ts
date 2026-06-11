@@ -10,6 +10,8 @@ export async function modulesRoutes(server: FastifyInstance) {
   server.post('/groups', { schema: { tags: ['Modules'], summary: '[Admin] Create module group', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, ModuleController.createGroup);
   server.patch('/groups/:id', { schema: { tags: ['Modules'], summary: '[Admin] Update module group', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, ModuleController.updateGroup);
   server.delete('/groups/:id', { schema: { tags: ['Modules'], summary: '[Admin] Delete module group', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, ModuleController.deleteGroup);
+  server.post('/groups/:id/archive', { schema: { tags: ['Modules'], summary: '[Admin] Archive module group', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, ModuleController.archiveGroup);
+  server.post('/groups/:id/unarchive', { schema: { tags: ['Modules'], summary: '[Admin] Restore an archived module group', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, ModuleController.unarchiveGroup);
   server.get('/', { schema: { tags: ['Modules'], summary: 'List modules with search & filter', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, ModuleController.list);
   server.get('/:id', { schema: { tags: ['Modules'], summary: 'Get module detail', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, ModuleController.getById);
   server.get('/:id/details', { schema: { tags: ['Modules'], summary: '[Admin] Get module full details', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, ModuleController.getAdminDetails);
