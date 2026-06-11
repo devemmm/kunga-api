@@ -6,7 +6,7 @@ import { uploadToMinio } from '../lib/minio.js';
 import {
   RegisterDto, LoginDto, GoogleAuthDto,
   RefreshTokenDto, ForgotPasswordDto, ResetPasswordDto,
-  MfaVerifyDto, MfaResendDto,
+  MfaVerifyDto, MfaResendDto, MfaSetupVerifyDto,
 } from '../models/auth.model.js';
 
 export const AuthController = {
@@ -74,6 +74,20 @@ export const AuthController = {
   async resendMfa(req: FastifyRequest, reply: FastifyReply) {
     const { mfaToken } = MfaResendDto.parse(req.body);
     return reply.send(await AuthService.resendMfa(req.server as FastifyInstance, mfaToken));
+  },
+
+  /** Sends an OTP to the current user's own email before enabling 2FA. */
+  async sendMfaSetup(req: FastifyRequest, reply: FastifyReply) {
+    const user = (req as any).currentUser;
+    return reply.send(await AuthService.sendMfaSetupOtp(user.id));
+  },
+
+  /** Verifies the setup OTP and enables 2FA for the current user. */
+  async verifyMfaSetup(req: FastifyRequest, reply: FastifyReply) {
+    const user = (req as any).currentUser;
+    const { otp } = MfaSetupVerifyDto.parse(req.body);
+    const { user: updated } = await AuthService.verifyMfaSetup(user.id, otp);
+    return reply.send({ user: { id: updated.id, email: updated.email, name: updated.name, role: updated.role, subscriptionStatus: updated.subscriptionStatus, avatarUrl: updated.avatarUrl ?? null, mfaEnabled: updated.mfaEnabled ?? false } });
   },
 
   async googleAuth(req: FastifyRequest, reply: FastifyReply) {

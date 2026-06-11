@@ -173,6 +173,37 @@ export const AuthService = {
     return { message: 'OTP resent', mfaToken: newMfaToken, maskedEmail: maskEmail(user.email) };
   },
 
+  /** Sends an OTP to the current user's own email to confirm before enabling 2FA. */
+  async sendMfaSetupOtp(userId: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw Object.assign(new Error('User not found'), { status: 404 });
+
+    const otp = generateOtp();
+    await storeMfaOtp(user.id, otp);
+    sendOtpEmail(user.email, user.name ?? '', otp).catch(() => {});
+
+    return { message: 'OTP sent', maskedEmail: maskEmail(user.email) };
+  },
+
+  /** Verifies the setup OTP and enables 2FA for the current user. */
+  async verifyMfaSetup(userId: string, otp: string) {
+    const result = await verifyMfaOtp(userId, otp);
+
+    if (result === 'expired') {
+      throw Object.assign(new Error('Verification code has expired. Please request a new one.'), { status: 401 });
+    }
+    if (result === 'locked') {
+      throw Object.assign(new Error('Too many incorrect attempts. Please request a new code.'), { status: 429 });
+    }
+    if (result === 'invalid') {
+      throw Object.assign(new Error('Incorrect verification code. Please try again.'), { status: 400 });
+    }
+
+    const updated = await prisma.user.update({ where: { id: userId }, data: { mfaEnabled: true } });
+    const { passwordHash: _, ...user } = updated;
+    return { user };
+  },
+
   async googleAuth(data: GoogleAuthInput) {
     let ticket;
     try {
