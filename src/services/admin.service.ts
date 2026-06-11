@@ -364,7 +364,7 @@ const DEFAULT_PRICING: Record<string, { value: string; description: string }> = 
   app_store_url_android:   { value: 'https://play.google.com/store/apps/details?id=rw.devemm.kunga.basics', description: 'Android Play Store URL' },
   // ── WhatsApp contact ─────────────────────────────────────────────────────────
   whatsapp_enabled: { value: 'true',          description: 'Show WhatsApp contact button in the mobile app (true/false)' },
-  whatsapp_number:  { value: '+250788000000', description: 'WhatsApp phone number (E.164 format, e.g. +250788000000)' },
+  whatsapp_number:  { value: '+250788596281', description: 'WhatsApp phone number (E.164 format, e.g. +250788596281)' },
 };
 
 export const PricingService = {

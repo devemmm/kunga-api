@@ -320,10 +320,10 @@ Preview modules (\`isPreview: true\`) are always accessible.
       const m = Object.fromEntries(rows.map((r: any) => [r.key, r.value]));
       return reply.send({
         enabled: (m.whatsapp_enabled ?? 'true') === 'true',
-        number:  m.whatsapp_number ?? '+250788000000',
+        number:  m.whatsapp_number ?? '+250788596281',
       });
     } catch {
-      return reply.send({ enabled: true, number: '+250788000000' });
+      return reply.send({ enabled: true, number: '+250788596281' });
     }
   });
 
