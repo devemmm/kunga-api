@@ -327,6 +327,28 @@ Preview modules (\`isPreview: true\`) are always accessible.
     }
   });
 
+  // ─── PUBLIC: SUBSCRIPTION PRICING ─────────────────────────────────────────
+  // Mobile app reads this on the Paywall screen so prices always match what
+  // the admin has configured. No auth required.
+
+  server.get(`${API}/app/pricing`, {
+    schema: { tags: ['App'], summary: 'Get subscription pricing for mobile paywall' },
+  }, async (_req, reply) => {
+    try {
+      const rows = await prisma.$queryRaw<Array<{ key: string; value: string }>>`
+        SELECT key, value FROM app_config
+        WHERE key IN ('price_monthly_usd','price_annual_usd')
+      `;
+      const m = Object.fromEntries(rows.map((r: any) => [r.key, r.value]));
+      return reply.send({
+        monthly: parseFloat(m.price_monthly_usd) || 14,
+        annual:  parseFloat(m.price_annual_usd)  || 140,
+      });
+    } catch {
+      return reply.send({ monthly: 14, annual: 140 });
+    }
+  });
+
   // ─── HEALTH & ROOT ─────────────────────────────────────────────────────────
 
   server.get('/health', async () => ({
