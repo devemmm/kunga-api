@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { config } from '../config/index.js';
 import { sendSubscriptionCancelledEmail, sendSubscriptionRestoredEmail } from '../lib/email.js';
+import { PricingService } from './admin.service.js';
 import type { OverrideSubscriptionInput, RevenueCatSyncInput, FlutterwaveInitiateInput, StripeCheckoutInput } from '../models/index.js';
 
 export const SubscriptionService = {
@@ -137,7 +138,8 @@ export const PaymentService = {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
     if (!user) throw Object.assign(new Error('User not found'), { status: 404 });
 
-    const amount   = data.plan === 'annual' ? 140 : 14;
+    const prices   = await PricingService.getPrices();
+    const amount   = data.plan === 'annual' ? prices.annual : prices.monthly;
     const currency = data.currency ?? 'USD';
     const txRef    = `KB-${userId}-${Date.now()}`;
 
@@ -165,6 +167,7 @@ export const PaymentService = {
       });
       const flwData = await flwRes.json() as any;
       if (!flwRes.ok || flwData.status !== 'success') {
+        console.error('[Flutterwave] initiate failed', { plan: data.plan, amount, currency, status: flwRes.status, body: flwData });
         throw Object.assign(new Error(flwData?.message ?? 'Payment provider error'), { status: 502 });
       }
       paymentLink = flwData.data.link;
@@ -208,7 +211,8 @@ export const PaymentService = {
     // Idempotent — skip update if webhook already activated it
     if (subscription.status === 'ACTIVE') return { verified: true, activated: true, alreadyActive: true };
 
-    const plan      = amount >= 140 ? 'annual' : 'monthly';
+    const prices    = await PricingService.getPrices();
+    const plan      = amount >= (prices.monthly + prices.annual) / 2 ? 'annual' : 'monthly';
     const periodEnd = new Date();
     periodEnd.setDate(periodEnd.getDate() + (plan === 'annual' ? 365 : 30));
 
