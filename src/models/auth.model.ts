@@ -41,6 +41,10 @@ export const MfaSetupVerifyDto = z.object({
   otp: z.string().length(6).regex(/^\d{6}$/, 'OTP must be 6 digits'),
 });
 
+export const MfaDisableVerifyDto = z.object({
+  otp: z.string().length(6).regex(/^\d{6}$/, 'OTP must be 6 digits'),
+});
+
 export type RegisterInput      = z.infer<typeof RegisterDto>;
 export type LoginInput         = z.infer<typeof LoginDto>;
 export type GoogleAuthInput    = z.infer<typeof GoogleAuthDto>;
@@ -50,3 +54,4 @@ export type ResetPasswordInput = z.infer<typeof ResetPasswordDto>;
 export type MfaVerifyInput     = z.infer<typeof MfaVerifyDto>;
 export type MfaResendInput     = z.infer<typeof MfaResendDto>;
 export type MfaSetupVerifyInput = z.infer<typeof MfaSetupVerifyDto>;
+export type MfaDisableVerifyInput = z.infer<typeof MfaDisableVerifyDto>;

@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { redis } from '../lib/redis.js';
 import { config } from '../config/index.js';
-import { sendPasswordResetEmail, sendWelcomeEmail, sendOtpEmail } from '../lib/email.js';
+import { sendPasswordResetEmail, sendWelcomeEmail, sendOtpEmail, sendMfaEnabledEmail, sendMfaDisabledEmail } from '../lib/email.js';
 import type {
   RegisterInput,
   LoginInput,
@@ -201,6 +201,39 @@ export const AuthService = {
 
     const updated = await prisma.user.update({ where: { id: userId }, data: { mfaEnabled: true } });
     const { passwordHash: _, ...user } = updated;
+    sendMfaEnabledEmail(user.email, user.name ?? '').catch(() => {});
+    return { user };
+  },
+
+  /** Sends an OTP to the current user's own email to confirm before disabling 2FA. */
+  async sendMfaDisableOtp(userId: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw Object.assign(new Error('User not found'), { status: 404 });
+
+    const otp = generateOtp();
+    await storeMfaOtp(user.id, otp);
+    sendOtpEmail(user.email, user.name ?? '', otp).catch(() => {});
+
+    return { message: 'OTP sent', maskedEmail: maskEmail(user.email) };
+  },
+
+  /** Verifies the disable OTP and disables 2FA for the current user. */
+  async verifyMfaDisable(userId: string, otp: string) {
+    const result = await verifyMfaOtp(userId, otp);
+
+    if (result === 'expired') {
+      throw Object.assign(new Error('Verification code has expired. Please request a new one.'), { status: 401 });
+    }
+    if (result === 'locked') {
+      throw Object.assign(new Error('Too many incorrect attempts. Please request a new code.'), { status: 429 });
+    }
+    if (result === 'invalid') {
+      throw Object.assign(new Error('Incorrect verification code. Please try again.'), { status: 400 });
+    }
+
+    const updated = await prisma.user.update({ where: { id: userId }, data: { mfaEnabled: false } });
+    const { passwordHash: _, ...user } = updated;
+    sendMfaDisabledEmail(user.email, user.name ?? '').catch(() => {});
     return { user };
   },
 

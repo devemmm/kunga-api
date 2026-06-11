@@ -123,6 +123,34 @@ export async function sendOtpEmail(
   await send(to, 'Your Kunga Basics verification code', html);
 }
 
+// ─── 2FA enabled / disabled notifications ─────────────────────────────────────
+
+export async function sendMfaEnabledEmail(to: string, name: string): Promise<void> {
+  const html = layout('Two-factor authentication enabled', `
+    <p>Hi ${name || 'there'},</p>
+    <p>Two-factor authentication (2FA) has just been <strong>enabled</strong> on your Kunga Basics account.
+       From now on, you'll need to enter a verification code sent to this email whenever you sign in.</p>
+    <p style="font-size:13px;color:#6b7280;">
+      If you didn't make this change, please contact us immediately and reset your password.
+    </p>
+    <p>Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
+  `);
+  await send(to, 'Two-factor authentication enabled', html);
+}
+
+export async function sendMfaDisabledEmail(to: string, name: string): Promise<void> {
+  const html = layout('Two-factor authentication disabled', `
+    <p>Hi ${name || 'there'},</p>
+    <p>Two-factor authentication (2FA) has just been <strong>disabled</strong> on your Kunga Basics account.
+       Your account will no longer require a verification code at sign-in.</p>
+    <p style="font-size:13px;color:#6b7280;">
+      If you didn't make this change, please contact us immediately and reset your password.
+    </p>
+    <p>Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
+  `);
+  await send(to, 'Two-factor authentication disabled', html);
+}
+
 // ─── Password reset ───────────────────────────────────────────────────────────
 
 export async function sendPasswordResetEmail(

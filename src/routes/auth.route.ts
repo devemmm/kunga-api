@@ -114,6 +114,23 @@ export async function authRoutes(server: FastifyInstance) {
     preHandler: [requireAuth],
   }, AuthController.verifyMfaSetup);
 
+  server.post('/mfa/disable/send', {
+    schema: { tags: ['Auth'], summary: 'Send an OTP to the current user\'s email to confirm disabling 2FA', security: [{ bearerAuth: [] }] },
+    preHandler: [requireAuth],
+  }, AuthController.sendMfaDisable);
+
+  server.post('/mfa/disable/verify', {
+    schema: {
+      tags: ['Auth'], summary: 'Verify disable OTP and disable 2FA for the current user',
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object', required: ['otp'],
+        properties: { otp: { type: 'string', minLength: 6, maxLength: 6 } },
+      },
+    },
+    preHandler: [requireAuth],
+  }, AuthController.verifyMfaDisable);
+
   server.post('/logout', {
     schema: { tags: ['Auth'], summary: 'Logout (client should discard tokens)' },
     preHandler: [requireAuth],

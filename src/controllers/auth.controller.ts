@@ -6,7 +6,7 @@ import { uploadToMinio } from '../lib/minio.js';
 import {
   RegisterDto, LoginDto, GoogleAuthDto,
   RefreshTokenDto, ForgotPasswordDto, ResetPasswordDto,
-  MfaVerifyDto, MfaResendDto, MfaSetupVerifyDto,
+  MfaVerifyDto, MfaResendDto, MfaSetupVerifyDto, MfaDisableVerifyDto,
 } from '../models/auth.model.js';
 
 export const AuthController = {
@@ -87,6 +87,20 @@ export const AuthController = {
     const user = (req as any).currentUser;
     const { otp } = MfaSetupVerifyDto.parse(req.body);
     const { user: updated } = await AuthService.verifyMfaSetup(user.id, otp);
+    return reply.send({ user: { id: updated.id, email: updated.email, name: updated.name, role: updated.role, subscriptionStatus: updated.subscriptionStatus, avatarUrl: updated.avatarUrl ?? null, mfaEnabled: updated.mfaEnabled ?? false } });
+  },
+
+  /** Sends an OTP to the current user's own email before disabling 2FA. */
+  async sendMfaDisable(req: FastifyRequest, reply: FastifyReply) {
+    const user = (req as any).currentUser;
+    return reply.send(await AuthService.sendMfaDisableOtp(user.id));
+  },
+
+  /** Verifies the disable OTP and disables 2FA for the current user. */
+  async verifyMfaDisable(req: FastifyRequest, reply: FastifyReply) {
+    const user = (req as any).currentUser;
+    const { otp } = MfaDisableVerifyDto.parse(req.body);
+    const { user: updated } = await AuthService.verifyMfaDisable(user.id, otp);
     return reply.send({ user: { id: updated.id, email: updated.email, name: updated.name, role: updated.role, subscriptionStatus: updated.subscriptionStatus, avatarUrl: updated.avatarUrl ?? null, mfaEnabled: updated.mfaEnabled ?? false } });
   },
 
