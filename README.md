@@ -261,16 +261,16 @@ ssh root@devemm.rw "docker logs kunga-api --tail 50"
 
 | Provider | URL |
 |----------|-----|
-| Flutterwave | `https://api.kunga.devemm.rw/api/v1/webhooks/flutterwave` |
-| Stripe | `https://api.kunga.devemm.rw/api/v1/webhooks/stripe` |
-| RevenueCat | `https://api.kunga.devemm.rw/api/v1/webhooks/revenuecat` |
+| Flutterwave | `https://api.kungabasics.com/api/v1/webhooks/flutterwave` |
+| Stripe | `https://api.kungabasics.com/api/v1/webhooks/stripe` |
+| RevenueCat | `https://api.kungabasics.com/api/v1/webhooks/revenuecat` |
 
 ---
 
 ## API Docs (Swagger)
 
 ```
-https://api.kunga.devemm.rw/docs
+https://api.kungabasics.com/docs
 http://localhost:3001/docs   (development)
 ```
 
