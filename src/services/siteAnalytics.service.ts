@@ -358,4 +358,31 @@ export const SiteAnalyticsService = {
     for (const s of sessions) lines.push(cols.map(c => esc((s as any)[c])).join(','));
     return lines.join('\n');
   },
+
+  /**
+   * Public, read-only headline numbers for the marketing site (no auth, no PII).
+   * Caregiver satisfaction is derived from module feedback ratings (1-5 scale,
+   * averaged across childResponse + confidence, scaled to a percentage).
+   */
+  async getPublicStats() {
+    const [familiesSupported, feedback] = await Promise.all([
+      prisma.user.count({ where: { role: 'PARENT' } }),
+      prisma.moduleFeedback.aggregate({
+        _avg: { childResponse: true, confidence: true },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const avgChild = feedback._avg.childResponse;
+    const avgConfidence = feedback._avg.confidence;
+    const caregiverSatisfaction = (avgChild != null && avgConfidence != null)
+      ? Math.round(((avgChild + avgConfidence) / 2 / 5) * 100)
+      : null;
+
+    return {
+      familiesSupported,
+      caregiverSatisfaction,
+      languagesSupported: 4,
+    };
+  },
 };

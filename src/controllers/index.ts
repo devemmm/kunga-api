@@ -358,6 +358,10 @@ export const SiteAnalyticsController = {
     reply.header('Content-Disposition', `attachment; filename="visitor-analytics-${new Date().toISOString().slice(0, 10)}.csv"`);
     return reply.send(csv);
   },
+  // Public — headline numbers shown on the marketing site's stats section.
+  async getPublicStats(_req: FastifyRequest, reply: FastifyReply) {
+    return reply.send(await SiteAnalyticsService.getPublicStats());
+  },
 };
 
 // ─── PRICING CONTROLLER ──────────────────────────────────────────────────────

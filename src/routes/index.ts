@@ -138,4 +138,11 @@ export async function analyticsRoutes(server: FastifyInstance) {
   server.get('/site/trends',   { schema: { tags: ['Analytics'], summary: '[Admin] Visitor trends over time', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, SiteAnalyticsController.getTrends);
   server.get('/site/realtime', { schema: { tags: ['Analytics'], summary: '[Admin] Visitors active right now', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, SiteAnalyticsController.getRealtime);
   server.get('/site/export',   { schema: { tags: ['Analytics'], summary: '[Admin] Export visitor sessions as CSV', security: [{ bearerAuth: [] }] }, preHandler: [requireAdmin] }, SiteAnalyticsController.exportCsv);
+
+  // Public — headline numbers (families supported, satisfaction, etc.) for the
+  // marketing site's stats section. No auth, no PII.
+  server.get('/site/public-stats', {
+    schema: { tags: ['Analytics'], summary: 'Public headline stats for the marketing site' },
+    config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+  }, SiteAnalyticsController.getPublicStats);
 }

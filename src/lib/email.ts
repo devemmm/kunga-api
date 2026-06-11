@@ -47,7 +47,7 @@ function layout(title: string, body: string): string {
           <td style="background:#0d3b36;padding:24px 32px;">
             <table cellpadding="0" cellspacing="0"><tr>
               <td style="vertical-align:middle;padding-right:10px;">
-                <img src="https://portal.kungabasics.com/icon.png" alt="Kunga Basics"
+                <img src="https://kungabasics.com/icon.png" alt="Kunga Basics"
                      width="32" height="32" style="display:block;border-radius:6px;" />
               </td>
               <td style="vertical-align:middle;">
