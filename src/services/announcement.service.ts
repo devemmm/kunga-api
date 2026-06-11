@@ -7,13 +7,20 @@ import type { CreateAnnouncementInput, UpdateAnnouncementInput } from '../models
 export const AnnouncementService = {
   async getActive(userId: string, req?: any) {
     const lang = req ? getLang(req) : 'en';
-    const dismissed = await prisma.userAnnouncementDismissal.findMany({
-      where: { userId },
-      select: { announcementId: true },
-    });
+    const [user, dismissed] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } }),
+      prisma.userAnnouncementDismissal.findMany({
+        where: { userId },
+        select: { announcementId: true },
+      }),
+    ]);
     const dismissedIds = dismissed.map(d => d.announcementId);
     const anns = await prisma.announcement.findMany({
-      where: { status: 'PUBLISHED', id: { notIn: dismissedIds } },
+      where: {
+        status: 'PUBLISHED',
+        id: { notIn: dismissedIds },
+        ...(user ? { publishedAt: { gte: user.createdAt } } : {}),
+      },
       orderBy: { publishedAt: 'desc' },
     });
     if (lang === 'en') return anns;
@@ -22,13 +29,20 @@ export const AnnouncementService = {
 
   async getActiveBanner(userId: string, req?: any) {
     const lang = req ? getLang(req) : 'en';
-    const dismissed = await prisma.userAnnouncementDismissal.findMany({
-      where: { userId },
-      select: { announcementId: true },
-    });
+    const [user, dismissed] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } }),
+      prisma.userAnnouncementDismissal.findMany({
+        where: { userId },
+        select: { announcementId: true },
+      }),
+    ]);
     const dismissedIds = dismissed.map(d => d.announcementId);
     const ann = await prisma.announcement.findFirst({
-      where: { status: 'PUBLISHED', id: { notIn: dismissedIds } },
+      where: {
+        status: 'PUBLISHED',
+        id: { notIn: dismissedIds },
+        ...(user ? { publishedAt: { gte: user.createdAt } } : {}),
+      },
       orderBy: { publishedAt: 'desc' },
     });
     if (!ann || lang === 'en') return ann;

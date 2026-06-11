@@ -129,7 +129,7 @@ export async function usersRoutes(server: FastifyInstance) {
         select: { id: true, questionText: true, responseText: true, respondedAt: true },
       }),
       prisma.announcement.findMany({
-        where: { status: 'PUBLISHED' },
+        where: { status: 'PUBLISHED', publishedAt: { gte: user.createdAt } },
         orderBy: { publishedAt: 'desc' },
         take: 15,
         select: { id: true, title: true, body: true, publishedAt: true, createdAt: true },
