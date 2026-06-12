@@ -361,7 +361,7 @@ const DEFAULT_PRICING: Record<string, { value: string; description: string }> = 
   app_min_version:         { value: '1.0.0', description: 'Minimum app version — users below this are forced to update' },
   app_latest_version:      { value: '1.0.0', description: 'Latest app version — users below this see an optional update prompt' },
   app_store_url_ios:       { value: 'https://apps.apple.com/app/kunga-basics/id000000000', description: 'iOS App Store URL' },
-  app_store_url_android:   { value: 'https://play.google.com/store/apps/details?id=rw.devemm.kunga.basics', description: 'Android Play Store URL' },
+  app_store_url_android:   { value: 'https://play.google.com/store/apps/details?id=com.kungabasics.app', description: 'Android Play Store URL' },
   // ── WhatsApp contact ─────────────────────────────────────────────────────────
   whatsapp_enabled: { value: 'true',          description: 'Show WhatsApp contact button in the mobile app (true/false)' },
   whatsapp_number:  { value: '+250788596281', description: 'WhatsApp phone number (E.164 format, e.g. +250788596281)' },
