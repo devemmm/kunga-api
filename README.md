@@ -83,8 +83,8 @@ npm run dev          # tsx watch — hot reload
 # ── App ────────────────────────────────────────────────────────────────────────
 NODE_ENV=production
 PORT=3001
-FRONTEND_URL=https://portal.kunga.devemm.rw
-PORTAL_URL=https://portal.kunga.devemm.rw
+FRONTEND_URL=https://admin.kungabasics.com
+PORTAL_URL=https://admin.kungabasics.com
 
 # ── Database ───────────────────────────────────────────────────────────────────
 DATABASE_URL=postgresql://user:password@host:5432/kunga

@@ -15,7 +15,7 @@ export const config = {
 
   cors: {
     // CORS_ORIGINS takes priority — comma-separated list of allowed origins.
-    // Example: CORS_ORIGINS=https://portal.kunga.devemm.rw,https://app.kungabasics.com
+    // Example: CORS_ORIGINS=https://admin.kungabasics.com,https://app.kungabasics.com
     // Falls back to FRONTEND_URL + ADMIN_URL for backwards compatibility.
     origins: process.env.CORS_ORIGINS
       ? process.env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
@@ -86,7 +86,7 @@ export const config = {
 
   app: {
     deepLinkScheme: 'kungabasics',
-    portalUrl:      process.env.PORTAL_URL ?? 'https://portal.kunga.devemm.rw',
+    portalUrl:      process.env.PORTAL_URL ?? 'https://admin.kungabasics.com',
     publicSiteUrl:  process.env.PUBLIC_SITE_URL ?? 'https://kungabasics.com',
     askGadMonthlyLimit: 2,
     streamUrlExpirySecs: 7200, // 2 hours
