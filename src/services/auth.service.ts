@@ -249,11 +249,7 @@ export const AuthService = {
         idToken: data.idToken,
         audience: audiences,
       });
-    } catch (err) {
-      console.error('[googleAuth] verifyIdToken failed', {
-        audiences: [config.google.clientId, config.google.iosClientId],
-        error: (err as Error)?.message,
-      });
+    } catch {
       throw Object.assign(new Error('Invalid Google ID token'), { status: 401 });
     }
 
