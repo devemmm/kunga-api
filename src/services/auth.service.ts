@@ -292,8 +292,9 @@ export const AuthService = {
         { sub: user.id, type: 'password_reset' },
         { expiresIn: '1h' },
       );
-      // Send real password reset email via Resend (best-effort)
-      sendPasswordResetEmail(user.email, user.name ?? '', resetToken).catch(() => {});
+      // Send real password reset email via Resend (best-effort).
+      // Admins reset via the admin portal; regular users via the public site.
+      sendPasswordResetEmail(user.email, user.name ?? '', resetToken, user.role === 'ADMIN').catch(() => {});
     }
     // Always return same response to prevent email enumeration
     return { message: 'If that email exists, a reset link has been sent' };

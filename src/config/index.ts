@@ -87,6 +87,7 @@ export const config = {
   app: {
     deepLinkScheme: 'kungabasics',
     portalUrl:      process.env.PORTAL_URL ?? 'https://portal.kunga.devemm.rw',
+    publicSiteUrl:  process.env.PUBLIC_SITE_URL ?? 'https://kungabasics.com',
     askGadMonthlyLimit: 2,
     streamUrlExpirySecs: 7200, // 2 hours
     serverUrl: process.env.SERVER_URL ?? '', // e.g. https://api.yourdomain.com — used to build public URLs for server-stored files
