@@ -29,6 +29,7 @@ model User {
   theme               String    @default("system")  // "system" | "light" | "dark"
   lang                String    @default("en")       // "en" | "fr" | "kin"
   mfaEnabled          Boolean   @default(false)
+  passwordChangedAt   DateTime?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 

@@ -301,7 +301,7 @@ export const AuthService = {
   },
 
   async resetPassword(server: FastifyInstance, data: ResetPasswordInput) {
-    let payload: { sub: string; type: string };
+    let payload: { sub: string; type: string; iat: number };
     try {
       payload = server.jwt.verify(data.token) as typeof payload;
       if (payload.type !== 'password_reset') throw new Error('Wrong token type');
@@ -309,8 +309,20 @@ export const AuthService = {
       throw Object.assign(new Error('Invalid or expired reset token'), { status: 400 });
     }
 
+    const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+    if (!user) throw Object.assign(new Error('Invalid or expired reset token'), { status: 400 });
+
+    // Reject tokens issued before the most recent password reset, so a used
+    // reset link can't be replayed within its remaining 1h validity window.
+    if (user.passwordChangedAt && payload.iat * 1000 < user.passwordChangedAt.getTime()) {
+      throw Object.assign(new Error('Invalid or expired reset token'), { status: 400 });
+    }
+
     const passwordHash = await bcrypt.hash(data.newPassword, 12);
-    await prisma.user.update({ where: { id: payload.sub }, data: { passwordHash } });
+    await prisma.user.update({
+      where: { id: payload.sub },
+      data: { passwordHash, passwordChangedAt: new Date() },
+    });
     return { message: 'Password updated successfully' };
   },
 
