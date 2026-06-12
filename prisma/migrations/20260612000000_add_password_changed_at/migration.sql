@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE "User" ADD COLUMN "passwordChangedAt" TIMESTAMP(3);
+ALTER TABLE "users" ADD COLUMN "passwordChangedAt" TIMESTAMP(3);
