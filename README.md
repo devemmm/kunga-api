@@ -45,8 +45,8 @@ kunga-api/
 ├── prisma/
 │   ├── schema.prisma       # Full database schema
 │   ├── migrations/         # SQL migration history
-│   ├── seed.ts             # Development seed data
-│   └── seed-prod.ts        # Production seed (admin user only)
+│   ├── seed.ts             # Development seed data (30 dummy users, modules, RBAC, etc.)
+│   └── seed-prod.ts        # Production seed (admin user, RBAC, app_config, module groups)
 └── src/
     ├── server.ts           # Fastify app setup, plugins, route registration
     ├── config/index.ts     # All env vars (single source of truth)
@@ -85,6 +85,9 @@ npm install
 cp .env.example .env
 npx prisma migrate dev
 npm run dev          # tsx watch — hot reload
+
+# Seed development data (30 dummy users, modules, RBAC, app_config, etc.)
+npx tsx prisma/seed.ts
 ```
 
 ---
@@ -100,8 +103,14 @@ As of **V1**, the entire schema history has been consolidated into a single base
 npx prisma migrate deploy
 npx prisma generate
 
-# Seed RBAC roles/permissions + a super-admin account
+# Seed super-admin account + RBAC roles/permissions + app_config defaults + module group taxonomy
 npx tsx prisma/seed-prod.ts
+```
+
+**Seeding for development** (instead of `seed-prod.ts`), use `prisma/seed.ts` — it includes everything `seed-prod.ts` does plus ~30 dummy parent users, modules/videos, subscriptions, donations, Ask Dr. Gad submissions, and activity logs for testing dashboards:
+
+```bash
+npx tsx prisma/seed.ts
 ```
 
 **Notes:**
@@ -110,6 +119,22 @@ npx tsx prisma/seed-prod.ts
 - The consolidated baseline was validated by deploying it to a clean `kungav1` database and diffing the resulting schema (tables, columns, types, indexes, foreign keys) against the live `kunga` production database — zero structural differences.
 - Existing environments (e.g. `kunga`) had their migration history resolved to this single baseline via `prisma migrate resolve --applied 20260613100000_init_v1`, with no data loss — only the `_prisma_migrations` bookkeeping table was affected.
 - Going forward, all schema changes should be new migrations created with `npx prisma migrate dev --name <change>` on top of `20260613100000_init_v1`.
+
+---
+
+## Testing
+
+Backend API tests run via **Vitest** + Fastify `.inject()` against a dedicated
+`kunga_test` database. See [TESTING.md](./TESTING.md) for setup and how to
+write new tests.
+
+```bash
+npm run test            # run all tests
+npm run test:coverage   # run with coverage report
+```
+
+CI runs the full suite on every push/PR to `dev`, `staging`, and `prod`
+(`.github/workflows/test.yml`) against a `postgres:16` service container.
 
 ---
 

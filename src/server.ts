@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import jwt from '@fastify/jwt';
@@ -25,7 +25,7 @@ import {
 import { webhooksRoutes } from './routes/webhooks.route.js';
 import { rolesRoutes, permissionsRoutes, supportTeamRoutes } from './routes/rbac.route.js';
 
-async function main() {
+export async function buildServer(): Promise<FastifyInstance> {
   // ─── SERVER INSTANCE ───────────────────────────────────────────────────────
 
   const isDev = config.env !== 'production';
@@ -363,7 +363,13 @@ Preview modules (\`isPreview: true\`) are always accessible.
     name: 'Kunga Basics API', version: '1.0.0', docs: '/docs',
   }));
 
-  // ─── START ─────────────────────────────────────────────────────────────────
+  return server;
+}
+
+// ─── START ───────────────────────────────────────────────────────────────────
+
+async function main() {
+  const server = await buildServer();
 
   await server.listen({ port: config.port, host: config.host });
 
@@ -379,11 +385,12 @@ Preview modules (\`isPreview: true\`) are always accessible.
     `host:${SERVER_META.serverOS} (${SERVER_META.arch})  ` +
     `mem:${SERVER_META.memoryMB} MB  cpus:${SERVER_META.cpus}`,
   );
-
-  return server;
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Only auto-start when run directly (not when imported by tests via buildServer()).
+if (process.env.NODE_ENV !== 'test') {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

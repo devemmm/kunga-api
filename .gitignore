@@ -8,6 +8,7 @@ dist/
 .env
 .env.local
 .env.*.local
+.env.test
 
 # ─── Local file uploads (all uploads go to MinIO — no local storage) ─────────
 uploads/
