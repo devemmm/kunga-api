@@ -4,6 +4,18 @@ Fastify REST API powering the Kunga Basics mobile app and admin portal. Handles 
 
 ---
 
+## Branching Strategy
+
+| Branch | Purpose |
+|--------|---------|
+| `dev` | Active development. All new work is merged here first. |
+| `staging` | Pre-production verification. Promote from `dev` when ready for QA. |
+| `prod` | Production. Promote from `staging` after sign-off; this is what's deployed to `api.kungabasics.com`. |
+
+Workflow: `dev` → `staging` → `prod`. Open PRs against `dev`; promote via merge/fast-forward to `staging` and `prod` once verified.
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -214,12 +226,95 @@ These can be changed live from the admin portal Pricing page — no redeploy nee
 ## Security
 
 - All routes require `requireAuth` (valid JWT) unless explicitly public
-- Admin routes require `requireAdmin` (role = ADMIN)
+- Admin routes require `requireAdmin` (role = ADMIN) or a granular `requirePermission(...)` check (see RBAC below)
 - Premium content requires `requireSubscription` (ACTIVE/TRIAL/SCHOLARSHIP)
 - Webhook routes verified by signature header
 - Passwords: bcrypt cost factor 12
 - 2FA: 6-digit OTP, 10-min TTL, max 3 attempts, Redis-backed
 - Rate limiting on all routes
+
+---
+
+## Roles & Permissions (RBAC)
+
+Admin/support-team users are authorized via a role-based permission system layered on top of `requireAuth`.
+
+### Models
+
+```
+Role          name, description, isSystem
+Permission    code, description, category
+RolePermission   (Role ↔ Permission)
+UserRole          (User ↔ Role)
+UserPermission    (User ↔ Permission — direct overrides, optional `granted: false` to revoke)
+AuditLog          userId, action, module, entityType?, entityId?,
+                  previousValue?, newValue?, ipAddress, userAgent, browser, device, createdAt
+```
+
+A user's **effective permissions** = union of all permissions from their assigned roles, plus any direct `UserPermission` grants, minus any direct revokes. `Role.permissions = '*'` (Super Admin) grants every permission.
+
+`requirePermission('CODE_A', 'CODE_B', ...)` (in `src/middleware/auth.ts`) allows the request if the user has **any** of the listed permission codes.
+
+### Permission catalogue (`prisma/rbac-seed.ts`)
+
+| Category | Codes |
+|----------|-------|
+| Dashboard | `VIEW_DASHBOARD` |
+| Analytics | `VIEW_ANALYTICS` |
+| Users | `VIEW_USERS`, `MANAGE_USERS`, `VIEW_SUBSCRIPTIONS`, `MANAGE_SUBSCRIPTIONS` |
+| Ask Dr. Gad | `VIEW_QUESTIONS`, `ASSIGN_QUESTIONS`, `ANSWER_QUESTIONS`, `ESCALATE_QUESTIONS` |
+| Content | `VIEW_CONTENT`, `MANAGE_CONTENT`, `MANAGE_VIDEOS`, `MANAGE_ANNOUNCEMENTS` |
+| Revenue | `VIEW_DONATIONS`, `VIEW_MOBILE_MONEY`, `VIEW_CARD_PAYMENTS`, `MANAGE_PRICING` |
+| Administration | `MANAGE_ROLES`, `MANAGE_PERMISSIONS`, `VIEW_SUPPORT_TEAM`, `MANAGE_SUPPORT_TEAM`, `VIEW_AUDIT_LOGS` |
+
+### Default roles
+
+| Role | Access |
+|------|--------|
+| Super Admin | `*` — every permission, including role/permission/audit management |
+| Support Manager | Dashboard, Users (view), Subscriptions (view), Ask Dr. Gad (full), Support Team (view) |
+| Support Agent | Dashboard, Ask Dr. Gad (answer/escalate) |
+| Content Manager | Content, Videos, Announcements |
+| Finance Officer | Revenue views + Pricing |
+
+Re-run the seed (idempotent) with `npx tsx prisma/rbac-seed.ts` or via the main `prisma/seed.ts`.
+
+### Roles & Permissions API (`/admin/roles`, `/admin/permissions`)
+
+| Method & Path | Permission | Description |
+|----------------|------------|-------------|
+| `GET /admin/roles` | `MANAGE_ROLES` | List roles |
+| `POST /admin/roles` | `MANAGE_ROLES` | Create role |
+| `PATCH /admin/roles/:id` | `MANAGE_ROLES` | Update role |
+| `DELETE /admin/roles/:id` | `MANAGE_ROLES` | Delete role (non-system, unused only) |
+| `GET /admin/roles/:id/users` | `MANAGE_ROLES` | List users assigned to a role |
+| `PATCH /admin/roles/:id/permissions` | `MANAGE_ROLES` | Replace a role's permission set |
+| `GET /admin/permissions` | `MANAGE_ROLES` or `MANAGE_PERMISSIONS` | List all permissions grouped by category |
+
+### Support Team API (`/admin/support-team`)
+
+| Method & Path | Permission | Description |
+|----------------|------------|-------------|
+| `GET /admin/support-team` | `MANAGE_SUPPORT_TEAM` or `VIEW_SUPPORT_TEAM` | List support team members |
+| `POST /admin/support-team` | `MANAGE_SUPPORT_TEAM` | Create member — generates a temp password, returns it once (`tempPassword`) and emails a setup link |
+| `PATCH /admin/support-team/:id` | `MANAGE_SUPPORT_TEAM` | Update member |
+| `POST /admin/support-team/:id/deactivate` | `MANAGE_SUPPORT_TEAM` | Deactivate member |
+| `POST /admin/support-team/:id/activate` | `MANAGE_SUPPORT_TEAM` | Reactivate member |
+| `POST /admin/support-team/:id/reset-password` | `MANAGE_SUPPORT_TEAM` | Send password-reset email |
+| `POST /admin/support-team/:id/regenerate-password` | `MANAGE_SUPPORT_TEAM` | Generate a new one-time temp password (overwrites the previous one — returned once, not stored in plaintext) |
+| `PATCH /admin/support-team/:id/roles` | `MANAGE_SUPPORT_TEAM` | Assign roles to member |
+| `PATCH /admin/support-team/:id/permissions` | `MANAGE_SUPPORT_TEAM` | Direct permission overrides (grant/revoke) |
+
+### Audit Log
+
+Every RBAC, Support Team, and Ask Dr. Gad assign/escalate action is recorded via `RbacService.writeAuditLog(...)`:
+
+- `entityType` / `entityId` — what was affected (`Role`, `User`, `AskGadSubmission`, etc.) — `null` for log rows written before this field existed.
+- `previousValue` / `newValue` — JSON snapshots for diffing.
+- `browser` / `device` — parsed from `userAgent` via `parseUserAgent()` (`src/lib/ua.ts`) at read time.
+- `sessionId` — not currently tracked (JWTs are stateless); reserved column, always `null`.
+
+Exposed read-only via `GET /admin/audit-log` (`VIEW_AUDIT_LOGS`), with `search` and `module` filters.
 
 ---
 
