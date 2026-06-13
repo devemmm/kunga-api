@@ -14,6 +14,8 @@
 
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { seedRbac } from './rbac-seed.js';
+import { PricingService } from '../src/services/admin.service.js';
 
 const prisma = new PrismaClient();
 
@@ -51,6 +53,28 @@ async function main() {
   console.log(`   Password : ${defaultPassword}`);
   console.log(`   Role     : ${admin.role}`);
   console.log('\n⚠️  Change the admin password immediately after first login!\n');
+
+  // ── RBAC: permission catalogue + default roles ─────────────────────────────
+  await seedRbac(prisma);
+
+  // ── App Config: default pricing/version/contact rows ───────────────────────
+  console.log('\n⚙️  Seeding default app_config rows...');
+  await PricingService.ensureTable();
+  console.log('   ✅ app_config defaults seeded');
+
+  // ── Module Groups: fixed top-level content taxonomy ─────────────────────────
+  console.log('\n📁 Seeding module group taxonomy...');
+  const groupDefs = [
+    { name: 'Speech & Language',    emoji: '🗣️', description: 'Help your child find their voice and communicate', sortOrder: 1 },
+    { name: 'Calm & Focus',         emoji: '🧘', description: 'Building emotional regulation and attention skills', sortOrder: 2 },
+    { name: 'Movement & Motor',     emoji: '🏃', description: 'Developing coordination and body awareness', sortOrder: 3 },
+    { name: 'Social & Play Skills', emoji: '🤝', description: 'Building connection through guided play', sortOrder: 4 },
+    { name: 'Gut, Sleep & Feeding', emoji: '🌙', description: 'Supporting whole-body development', sortOrder: 5 },
+  ];
+  for (const g of groupDefs) {
+    const group = await prisma.moduleGroup.upsert({ where: { name: g.name }, update: {}, create: g });
+    console.log(`   📁 Group: ${group.emoji} ${group.name}`);
+  }
 }
 
 main()
