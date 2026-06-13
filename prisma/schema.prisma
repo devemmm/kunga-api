@@ -14,47 +14,47 @@ datasource db {
 // ─── USERS ───────────────────────────────────────────────────────────────────
 
 model User {
-  id                  String    @id @default(cuid())
-  email               String    @unique
-  passwordHash        String?
-  googleId            String?   @unique
-  name                String
-  avatarUrl           String?
-  role                UserRole  @default(PARENT)
-  subscriptionStatus  SubStatus @default(NONE)
-  platform            String?   // "apple_iap" | "google_play" | "stripe" | "flutterwave" | "scholarship"
-  pushToken           String?
-  lastLoginAt         DateTime?
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  passwordHash       String?
+  googleId           String?   @unique
+  name               String
+  avatarUrl          String?
+  role               UserRole  @default(PARENT)
+  subscriptionStatus SubStatus @default(NONE)
+  platform           String? // "apple_iap" | "google_play" | "stripe" | "flutterwave" | "scholarship"
+  pushToken          String?
+  lastLoginAt        DateTime?
   // Admin portal preferences
-  theme               String    @default("system")  // "system" | "light" | "dark"
-  lang                String    @default("en")       // "en" | "fr" | "kin"
-  mfaEnabled          Boolean   @default(false)
-  passwordChangedAt   DateTime?
-  phone               String?
-  isActive            Boolean   @default(true)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  theme              String    @default("system") // "system" | "light" | "dark"
+  lang               String    @default("en") // "en" | "fr" | "kin"
+  mfaEnabled         Boolean   @default(false)
+  passwordChangedAt  DateTime?
+  phone              String?
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   // Relations
-  childProfile        ChildProfile?
-  preferences         UserPreferences?
-  subscription        Subscription?
-  progress            UserProgress[]
-  routineEntries      RoutineEntry[]
-  milestoneReports    MilestoneReport[]
-  bookmarks           VideoBookmark[]
-  notes               VideoNote[]
-  feedback            ModuleFeedback[]
-  askGadSubmissions   AskGadSubmission[]
-  journalEntries      JournalEntry[]
-  announcementDismissals UserAnnouncementDismissal[]
-  donations           Donation[]
-  scholarshipGrants   ScholarshipGrant[]
-  questionCredits     QuestionCredit[]
-  visitorSessions     VisitorSession[]
-  roleAssignments     UserRoleAssignment[]
-  permissionOverrides UserPermission[]
-  assignedAskGadSubmissions AskGadSubmission[] @relation("AskGadAssignee")
+  childProfile              ChildProfile?
+  preferences               UserPreferences?
+  subscription              Subscription?
+  progress                  UserProgress[]
+  routineEntries            RoutineEntry[]
+  milestoneReports          MilestoneReport[]
+  bookmarks                 VideoBookmark[]
+  notes                     VideoNote[]
+  feedback                  ModuleFeedback[]
+  askGadSubmissions         AskGadSubmission[]
+  journalEntries            JournalEntry[]
+  announcementDismissals    UserAnnouncementDismissal[]
+  donations                 Donation[]
+  scholarshipGrants         ScholarshipGrant[]
+  questionCredits           QuestionCredit[]
+  visitorSessions           VisitorSession[]
+  roleAssignments           UserRoleAssignment[]
+  permissionOverrides       UserPermission[]
+  assignedAskGadSubmissions AskGadSubmission[]          @relation("AskGadAssignee")
 
   @@map("users")
 }
@@ -76,16 +76,16 @@ enum SubStatus {
 // ─── CHILD PROFILE ───────────────────────────────────────────────────────────
 
 model ChildProfile {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  childName    String
-  dateOfBirth  DateTime?
-  ageMonths    Int?
-  challenges   String[]   // ["speech_delay","attention","autism","hyperactivity","coordination","other"]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  childName   String
+  dateOfBirth DateTime?
+  ageMonths   Int?
+  challenges  String[] // ["speech_delay","attention","autism","hyperactivity","coordination","other"]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("child_profiles")
 }
@@ -97,20 +97,20 @@ model UserPreferences {
   userId               String   @unique
   notificationsEnabled Boolean  @default(true)
   routineReminderOn    Boolean  @default(true)
-  routineReminderTime  String   @default("08:00")   // HH:MM UTC
+  routineReminderTime  String   @default("08:00") // HH:MM UTC
   streakAlertsOn       Boolean  @default(true)
   milestoneRemindersOn Boolean  @default(true)
   drGadResponseOn      Boolean  @default(true)
   announcementsOn      Boolean  @default(true)
   marketingOn          Boolean  @default(false)
   donationsOn          Boolean  @default(false)
-  darkMode             String   @default("system")  // "system"|"light"|"dark"
-  textSize             String   @default("medium")  // "small"|"medium"|"large"
+  darkMode             String   @default("system") // "system"|"light"|"dark"
+  textSize             String   @default("medium") // "small"|"medium"|"large"
   language             String   @default("en")
   cookieConsent        Boolean?
   updatedAt            DateTime @updatedAt
 
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_preferences")
 }
@@ -118,26 +118,26 @@ model UserPreferences {
 // ─── SUBSCRIPTIONS ───────────────────────────────────────────────────────────
 
 model Subscription {
-  id                    String    @id @default(cuid())
-  userId                String    @unique
+  id                     String    @id @default(cuid())
+  userId                 String    @unique
   revenuecatSubscriberId String?
-  flutterwaveTxId       String?
-  stripePriceId         String?
-  plan                  String    // "monthly" | "annual" | "trial"
-  status                SubStatus @default(NONE)
-  platform              String    // "apple_iap"|"google_play"|"stripe"|"flutterwave"|"scholarship"
-  mobileMoneyProvider   String?   // "mpesa"|"mtn_momo"|"airtel_money"|"vodacom_mpesa"
-  mobileMoneyPhone      String?
-  periodStart           DateTime?
-  periodEnd             DateTime?
-  cancelledAt           DateTime?
-  promoCode             String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  flutterwaveTxId        String?
+  stripePriceId          String?
+  plan                   String // "monthly" | "annual" | "trial"
+  status                 SubStatus @default(NONE)
+  platform               String // "apple_iap"|"google_play"|"stripe"|"flutterwave"|"scholarship"
+  mobileMoneyProvider    String? // "mpesa"|"mtn_momo"|"airtel_money"|"vodacom_mpesa"
+  mobileMoneyPhone       String?
+  periodStart            DateTime?
+  periodEnd              DateTime?
+  cancelledAt            DateTime?
+  promoCode              String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
-  questionAddonUsd      Float     @default(0) // extra monthly cost from question credit add-ons
+  questionAddonUsd Float @default(0) // extra monthly cost from question credit add-ons
 
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("subscriptions")
 }
@@ -147,16 +147,16 @@ model Subscription {
 // 1 credit = 1 extra question for the calendar month (monthKey).
 
 model QuestionCredit {
-  id          String   @id @default(cuid())
-  userId      String
-  monthKey    String   // "2026-06" — YYYY-MM; scopes credit to one calendar month
-  credits     Int      @default(1)  // extra questions this purchase unlocks
-  amountUsd   Float
-  status      String   @default("PENDING") // PENDING | ACTIVE | FAILED
-  txRef       String?  @unique
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  userId    String
+  monthKey  String // "2026-06" — YYYY-MM; scopes credit to one calendar month
+  credits   Int      @default(1) // extra questions this purchase unlocks
+  amountUsd Float
+  status    String   @default("PENDING") // PENDING | ACTIVE | FAILED
+  txRef     String?  @unique
+  createdAt DateTime @default(now()) @db.Timestamptz
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, monthKey])
   @@map("question_credits")
@@ -165,17 +165,17 @@ model QuestionCredit {
 // ─── MODULE GROUPS ────────────────────────────────────────────────────────────
 
 model ModuleGroup {
-  id                    String   @id @default(cuid())
-  name                  String   @unique
-  emoji                 String
-  description           String?
-  sortOrder             Int      @default(0)
-  status                ContentStatus @default(PUBLISHED)
-  createdAt             DateTime @default(now())
-  nameTranslations      Json?    // { "fr": "...", "rw": "...", "sw": "..." }
+  id                      String        @id @default(cuid())
+  name                    String        @unique
+  emoji                   String
+  description             String?
+  sortOrder               Int           @default(0)
+  status                  ContentStatus @default(PUBLISHED)
+  createdAt               DateTime      @default(now())
+  nameTranslations        Json? // { "fr": "...", "rw": "...", "sw": "..." }
   descriptionTranslations Json?
 
-  modules               Module[]
+  modules Module[]
 
   @@map("module_groups")
 }
@@ -183,27 +183,27 @@ model ModuleGroup {
 // ─── MODULES ─────────────────────────────────────────────────────────────────
 
 model Module {
-  id                      String       @id @default(cuid())
-  groupId                 String
-  code                    String       @unique  // "C1","T1","L1" etc.
-  title                   String
-  emoji                   String?      // optional per-module emoji; falls back to group emoji in API
-  description             String?
-  whatToExpect            String?
-  isPreview               Boolean      @default(false)
-  status                  ContentStatus @default(DRAFT)
-  sortOrder               Int          @default(0)
-  createdAt               DateTime     @default(now())
-  updatedAt               DateTime     @updatedAt
-  titleTranslations       Json?        // { "fr": "...", "rw": "...", "sw": "..." }
-  descriptionTranslations Json?
+  id                       String        @id @default(cuid())
+  groupId                  String
+  code                     String        @unique // "C1","T1","L1" etc.
+  title                    String
+  emoji                    String? // optional per-module emoji; falls back to group emoji in API
+  description              String?
+  whatToExpect             String?
+  isPreview                Boolean       @default(false)
+  status                   ContentStatus @default(DRAFT)
+  sortOrder                Int           @default(0)
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
+  titleTranslations        Json? // { "fr": "...", "rw": "...", "sw": "..." }
+  descriptionTranslations  Json?
   whatToExpectTranslations Json?
 
-  group         ModuleGroup  @relation(fields: [groupId], references: [id])
-  videos        Video[]
-  resources     ModuleResource[]
-  progress      UserProgress[]
-  feedback      ModuleFeedback[]
+  group     ModuleGroup      @relation(fields: [groupId], references: [id])
+  videos    Video[]
+  resources ModuleResource[]
+  progress  UserProgress[]
+  feedback  ModuleFeedback[]
 
   @@map("modules")
 }
@@ -220,23 +220,23 @@ enum ResourceType {
 }
 
 model ModuleResource {
-  id                      String       @id @default(cuid())
+  id                      String        @id @default(cuid())
   moduleId                String
   title                   String
   type                    ResourceType
   url                     String
   description             String?
-  fileSize                Int?         // bytes (optional, for PDFs/docs)
-  pageCount               Int?         // pages (optional, for PDFs/books)
-  isPreviewClip           Boolean      @default(false)
-  sortOrder               Int          @default(0)
+  fileSize                Int? // bytes (optional, for PDFs/docs)
+  pageCount               Int? // pages (optional, for PDFs/books)
+  isPreviewClip           Boolean       @default(false)
+  sortOrder               Int           @default(0)
   status                  ContentStatus @default(DRAFT)
-  createdAt               DateTime     @default(now())
-  updatedAt               DateTime     @updatedAt
-  titleTranslations       Json?        // { "fr": "...", "rw": "...", "sw": "..." }
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+  titleTranslations       Json? // { "fr": "...", "rw": "...", "sw": "..." }
   descriptionTranslations Json?
 
-  module      Module       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
   @@map("module_resources")
 }
@@ -250,27 +250,27 @@ enum ContentStatus {
 // ─── VIDEOS ──────────────────────────────────────────────────────────────────
 
 model Video {
-  id                String       @id @default(cuid())
-  moduleId          String
-  title             String
-  titleTranslations Json?        // { "fr": "...", "rw": "...", "sw": "..." }
-  type              VideoType    @default(EXPLANATION)
-  cloudflareStreamId String?     @unique
-  hlsUrl            String?
-  thumbnailUrl      String?
-  durationSecs      Int?
-  hasdrm            Boolean      @default(true)
-  captionsUrl       String?      // SRT/VTT URL
-  captionsLang      String?      @default("en")
-  isPreviewClip     Boolean      @default(false)
-  sortOrder         Int          @default(0)
-  status            ContentStatus @default(DRAFT)
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  id                 String        @id @default(cuid())
+  moduleId           String
+  title              String
+  titleTranslations  Json? // { "fr": "...", "rw": "...", "sw": "..." }
+  type               VideoType     @default(EXPLANATION)
+  cloudflareStreamId String?       @unique
+  hlsUrl             String?
+  thumbnailUrl       String?
+  durationSecs       Int?
+  hasdrm             Boolean       @default(true)
+  captionsUrl        String? // SRT/VTT URL
+  captionsLang       String?       @default("en")
+  isPreviewClip      Boolean       @default(false)
+  sortOrder          Int           @default(0)
+  status             ContentStatus @default(DRAFT)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
-  module            Module       @relation(fields: [moduleId], references: [id])
-  bookmarks         VideoBookmark[]
-  notes             VideoNote[]
+  module    Module          @relation(fields: [moduleId], references: [id])
+  bookmarks VideoBookmark[]
+  notes     VideoNote[]
 
   @@map("videos")
 }
@@ -298,8 +298,8 @@ model UserProgress {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  module            Module    @relation(fields: [moduleId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module Module @relation(fields: [moduleId], references: [id])
 
   @@unique([userId, moduleId])
   @@map("user_progress")
@@ -314,8 +314,8 @@ model VideoBookmark {
   timestampSec Int
   createdAt    DateTime @default(now())
 
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  video        Video    @relation(fields: [videoId], references: [id])
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id])
 
   @@map("video_bookmarks")
 }
@@ -329,8 +329,8 @@ model VideoNote {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  video        Video    @relation(fields: [videoId], references: [id])
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id])
 
   @@map("video_notes")
 }
@@ -338,17 +338,17 @@ model VideoNote {
 // ─── DAILY ROUTINE ────────────────────────────────────────────────────────────
 
 model RoutineEntry {
-  id                 String   @id @default(cuid())
-  userId             String
-  date               String   // YYYY-MM-DD
-  category           String   // "calm"|"attention"|"speech"|"observation"
-  taskKey            String
-  completed          Boolean  @default(false)
-  completedAt        DateTime?
-  syncedAt           DateTime?
-  createdAt          DateTime @default(now())
+  id          String    @id @default(cuid())
+  userId      String
+  date        String // YYYY-MM-DD
+  category    String // "calm"|"attention"|"speech"|"observation"
+  taskKey     String
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  syncedAt    DateTime?
+  createdAt   DateTime  @default(now())
 
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date, category, taskKey])
   @@map("routine_entries")
@@ -357,18 +357,18 @@ model RoutineEntry {
 // ─── MILESTONE REPORTS ───────────────────────────────────────────────────────
 
 model MilestoneReport {
-  id              String   @id @default(cuid())
-  userId          String
-  weekStart       String   // YYYY-MM-DD (Monday)
-  responseName    Int?     // 1-5 — optional so partial saves are allowed
-  eyeContact      Int?
-  sitting         Int?
-  sounds          Int?
-  calmness        Int?
-  notes           String?
-  createdAt       DateTime @default(now())
+  id           String   @id @default(cuid())
+  userId       String
+  weekStart    String // YYYY-MM-DD (Monday)
+  responseName Int? // 1-5 — optional so partial saves are allowed
+  eyeContact   Int?
+  sitting      Int?
+  sounds       Int?
+  calmness     Int?
+  notes        String?
+  createdAt    DateTime @default(now())
 
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, weekStart])
   @@map("milestone_reports")
@@ -377,16 +377,16 @@ model MilestoneReport {
 // ─── MODULE FEEDBACK ─────────────────────────────────────────────────────────
 
 model ModuleFeedback {
-  id              String   @id @default(cuid())
-  userId          String
-  moduleId        String
-  childResponse   Int      // 1-5
-  confidence      Int      // 1-5
-  comment         String?
-  createdAt       DateTime @default(now())
+  id            String   @id @default(cuid())
+  userId        String
+  moduleId      String
+  childResponse Int // 1-5
+  confidence    Int // 1-5
+  comment       String?
+  createdAt     DateTime @default(now())
 
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  module          Module   @relation(fields: [moduleId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module Module @relation(fields: [moduleId], references: [id])
 
   @@unique([userId, moduleId])
   @@map("module_feedback")
@@ -395,25 +395,25 @@ model ModuleFeedback {
 // ─── ASK DR. GAD ─────────────────────────────────────────────────────────────
 
 model AskGadSubmission {
-  id               String          @id @default(cuid())
-  userId           String
-  questionText     String
-  videoR2Key       String?         // Cloudflare R2 object key
-  videoDurationSec Int?
-  status           SubmissionStatus @default(SUBMITTED)
-  responseText     String?
+  id                 String           @id @default(cuid())
+  userId             String
+  questionText       String
+  videoR2Key         String? // Cloudflare R2 object key
+  videoDurationSec   Int?
+  status             SubmissionStatus @default(SUBMITTED)
+  responseText       String?
   responseVideoR2Key String?
-  respondedAt      DateTime?
-  assignedToId     String?
-  assignedAt       DateTime?
-  escalationReason String?
-  escalatedAt      DateTime?
-  escalatedById    String?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  respondedAt        DateTime?
+  assignedToId       String?
+  assignedAt         DateTime?
+  escalationReason   String?
+  escalatedAt        DateTime?
+  escalatedById      String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
-  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  assignedTo       User?           @relation("AskGadAssignee", fields: [assignedToId], references: [id])
+  user       User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedTo User? @relation("AskGadAssignee", fields: [assignedToId], references: [id])
 
   @@map("ask_gad_submissions")
 }
@@ -430,16 +430,16 @@ enum SubmissionStatus {
 model JournalEntry {
   id         String   @id @default(cuid())
   userId     String
-  date       String   // YYYY-MM-DD
+  date       String // YYYY-MM-DD
   title      String?
-  mood       String?  // great | good | okay | tough | hard
+  mood       String? // great | good | okay | tough | hard
   tags       String[] @default([])
   noteText   String?
   photoR2Key String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
   @@map("journal_entries")
@@ -448,22 +448,22 @@ model JournalEntry {
 // ─── ANNOUNCEMENTS ───────────────────────────────────────────────────────────
 
 model Announcement {
-  id                String             @id @default(cuid())
+  id                String    @id @default(cuid())
   title             String
   body              String
-  titleTranslations Json?              // { "fr": "...", "rw": "...", "sw": "..." }
+  titleTranslations Json? // { "fr": "...", "rw": "...", "sw": "..." }
   bodyTranslations  Json?
   deepLink          String?
-  targetAudience  AnnTarget          @default(ALL_SUBSCRIBERS)
-  status          AnnStatus          @default(DRAFT)
-  scheduledAt     DateTime?
-  publishedAt     DateTime?
-  pushSentCount   Int                @default(0)
-  bannerViewCount Int                @default(0)
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  targetAudience    AnnTarget @default(ALL_SUBSCRIBERS)
+  status            AnnStatus @default(DRAFT)
+  scheduledAt       DateTime?
+  publishedAt       DateTime?
+  pushSentCount     Int       @default(0)
+  bannerViewCount   Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  dismissals      UserAnnouncementDismissal[]
+  dismissals UserAnnouncementDismissal[]
 
   @@map("announcements")
 }
@@ -483,13 +483,13 @@ enum AnnStatus {
 }
 
 model UserAnnouncementDismissal {
-  id             String       @id @default(cuid())
+  id             String   @id @default(cuid())
   userId         String
   announcementId String
-  dismissedAt    DateTime     @default(now())
+  dismissedAt    DateTime @default(now())
 
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  announcement   Announcement @relation(fields: [announcementId], references: [id])
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  announcement Announcement @relation(fields: [announcementId], references: [id])
 
   @@unique([userId, announcementId])
   @@map("user_announcement_dismissals")
@@ -499,20 +499,20 @@ model UserAnnouncementDismissal {
 
 model Donation {
   id                    String         @id @default(cuid())
-  userId                String?        // null for guest donations
+  userId                String? // null for guest donations
   email                 String
   amountUsd             Float
   currency              String         @default("USD")
   paymentMethod         DonationMethod
   flutterwaveTxId       String?
   stripePaymentIntentId String?
-  campaign              String?        // "Scholarship Fund" | "New Module Development"
+  campaign              String? // "Scholarship Fund" | "New Module Development"
   status                DonationStatus @default(PENDING)
   showOnDonorWall       Boolean        @default(false)
-  donorName             String?        // for donor wall display
+  donorName             String? // for donor wall display
   createdAt             DateTime       @default(now())
 
-  user                  User?          @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
 
   @@map("donations")
 }
@@ -534,16 +534,16 @@ enum DonationStatus {
 // ─── SCHOLARSHIP GRANTS ───────────────────────────────────────────────────────
 
 model ScholarshipGrant {
-  id          String   @id @default(cuid())
-  grantedBy   String   // admin user id
-  userId      String?  // linked after user registers
-  email       String
-  notes       String?
-  active      Boolean  @default(true)
-  grantedAt   DateTime @default(now())
-  revokedAt   DateTime?
+  id        String    @id @default(cuid())
+  grantedBy String // admin user id
+  userId    String? // linked after user registers
+  email     String
+  notes     String?
+  active    Boolean   @default(true)
+  grantedAt DateTime  @default(now())
+  revokedAt DateTime?
 
-  grantedByUser User?  @relation(fields: [grantedBy], references: [id])
+  grantedByUser User? @relation(fields: [grantedBy], references: [id])
 
   @@map("scholarship_grants")
 }
@@ -598,8 +598,8 @@ model RolePermission {
   roleId       String
   permissionId String
 
-  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
   @@map("role_permissions")
@@ -610,8 +610,8 @@ model UserRoleAssignment {
   roleId     String
   assignedAt DateTime @default(now())
 
-  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role       Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@id([userId, roleId])
   @@map("user_roles")
@@ -622,8 +622,8 @@ model UserPermission {
   permissionId String
   grantedAt    DateTime @default(now())
 
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([userId, permissionId])
   @@map("user_permissions")
@@ -650,42 +650,42 @@ model AuditLog {
 // ─── WEBSITE / APP ANALYTICS ─────────────────────────────────────────────────
 
 model VisitorSession {
-  id             String   @id @default(cuid())
-  sessionId      String   @unique
-  userId         String?
-  source         String   // "portal" | "admin" | "mobile"
+  id        String  @id @default(cuid())
+  sessionId String  @unique
+  userId    String?
+  source    String // "portal" | "admin" | "mobile"
 
-  firstSeenAt    DateTime @default(now())
-  lastSeenAt     DateTime @default(now())
-  pageViews      Int      @default(0)
-  isBounce       Boolean  @default(true)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  pageViews   Int      @default(0)
+  isBounce    Boolean  @default(true)
 
-  entryPath      String?
-  exitPath       String?
-  referrer       String?
-  utmSource      String?
-  utmMedium      String?
-  utmCampaign    String?
+  entryPath   String?
+  exitPath    String?
+  referrer    String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
 
-  ip             String?
-  country        String?
-  countryCode    String?
-  region         String?
-  city           String?
-  timezone       String?
-  language       String?
+  ip          String?
+  country     String?
+  countryCode String?
+  region      String?
+  city        String?
+  timezone    String?
+  language    String?
 
   browser        String?
   browserVersion String?
   os             String?
   osVersion      String?
-  deviceType     String?  // "desktop" | "mobile" | "tablet"
+  deviceType     String? // "desktop" | "mobile" | "tablet"
   screenWidth    Int?
   screenHeight   Int?
   appVersion     String?
 
-  user           User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
-  events         AnalyticsEvent[]
+  user   User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  events AnalyticsEvent[]
 
   @@index([source, firstSeenAt])
   @@index([countryCode])
@@ -698,17 +698,26 @@ model AnalyticsEvent {
   id        String   @id @default(cuid())
   sessionId String
   userId    String?
-  source    String   // "portal" | "admin" | "mobile"
-  eventType String   // "pageview" | "click" | "form_submit" | "login" | "logout" | "search" | "upload" | "download" | "video_play" | ...
+  source    String // "portal" | "admin" | "mobile"
+  eventType String // "pageview" | "click" | "form_submit" | "login" | "logout" | "search" | "upload" | "download" | "video_play" | ...
   path      String?
   label     String?
   meta      Json?
   createdAt DateTime @default(now())
 
-  session   VisitorSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  session VisitorSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
 
   @@index([source, eventType, createdAt])
   @@index([path])
   @@index([sessionId])
   @@map("analytics_events")
+}
+
+model AppConfig {
+  key         String   @id @db.VarChar(120)
+  value       String   @default("")
+  description String   @default("")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("app_config")
 }

@@ -409,16 +409,8 @@ const DEFAULT_PRICING: Record<string, { value: string; description: string }> = 
 };
 
 export const PricingService = {
-  /** Ensure the app_config table exists and is seeded with defaults. */
+  /** Seed missing default pricing/config rows (app_config table is created by Prisma migrations). */
   async ensureTable() {
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS app_config (
-        key         VARCHAR(120) PRIMARY KEY,
-        value       TEXT         NOT NULL DEFAULT '',
-        description TEXT         NOT NULL DEFAULT '',
-        updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-      )
-    `);
     // Seed missing defaults
     for (const [key, { value, description }] of Object.entries(DEFAULT_PRICING)) {
       await prisma.$executeRawUnsafe(

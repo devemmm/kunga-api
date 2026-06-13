@@ -5,13 +5,16 @@ CREATE TYPE "UserRole" AS ENUM ('PARENT', 'ADMIN');
 CREATE TYPE "SubStatus" AS ENUM ('NONE', 'TRIAL', 'ACTIVE', 'CANCELLED', 'EXPIRED', 'SCHOLARSHIP');
 
 -- CreateEnum
+CREATE TYPE "ResourceType" AS ENUM ('PDF', 'BOOK', 'LINK', 'AUDIO', 'WORKSHEET', 'IMAGE');
+
+-- CreateEnum
 CREATE TYPE "ContentStatus" AS ENUM ('DRAFT', 'PUBLISHED', 'ARCHIVED');
 
 -- CreateEnum
 CREATE TYPE "VideoType" AS ENUM ('EXPLANATION', 'PRACTICE', 'TASTER', 'DEMONSTRATION', 'ASSESSMENT');
 
 -- CreateEnum
-CREATE TYPE "SubmissionStatus" AS ENUM ('SUBMITTED', 'UNDER_REVIEW', 'RESPONDED');
+CREATE TYPE "SubmissionStatus" AS ENUM ('SUBMITTED', 'UNDER_REVIEW', 'RESPONDED', 'ESCALATED');
 
 -- CreateEnum
 CREATE TYPE "AnnTarget" AS ENUM ('ALL_SUBSCRIBERS', 'ACTIVE_ONLY', 'SPEECH_MODULE_USERS', 'ALL_REGISTERED');
@@ -38,6 +41,12 @@ CREATE TABLE "users" (
     "platform" TEXT,
     "pushToken" TEXT,
     "lastLoginAt" TIMESTAMP(3),
+    "theme" TEXT NOT NULL DEFAULT 'system',
+    "lang" TEXT NOT NULL DEFAULT 'en',
+    "mfaEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "passwordChangedAt" TIMESTAMP(3),
+    "phone" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -98,8 +107,23 @@ CREATE TABLE "subscriptions" (
     "promoCode" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "questionAddonUsd" DOUBLE PRECISION NOT NULL DEFAULT 0,
 
     CONSTRAINT "subscriptions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "question_credits" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "monthKey" TEXT NOT NULL,
+    "credits" INTEGER NOT NULL DEFAULT 1,
+    "amountUsd" DOUBLE PRECISION NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "txRef" TEXT,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "question_credits_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -109,7 +133,10 @@ CREATE TABLE "module_groups" (
     "emoji" TEXT NOT NULL,
     "description" TEXT,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
+    "status" "ContentStatus" NOT NULL DEFAULT 'PUBLISHED',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "nameTranslations" JSONB,
+    "descriptionTranslations" JSONB,
 
     CONSTRAINT "module_groups_pkey" PRIMARY KEY ("id")
 );
@@ -120,6 +147,7 @@ CREATE TABLE "modules" (
     "groupId" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "title" TEXT NOT NULL,
+    "emoji" TEXT,
     "description" TEXT,
     "whatToExpect" TEXT,
     "isPreview" BOOLEAN NOT NULL DEFAULT false,
@@ -127,8 +155,32 @@ CREATE TABLE "modules" (
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "titleTranslations" JSONB,
+    "descriptionTranslations" JSONB,
+    "whatToExpectTranslations" JSONB,
 
     CONSTRAINT "modules_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "module_resources" (
+    "id" TEXT NOT NULL,
+    "moduleId" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "type" "ResourceType" NOT NULL,
+    "url" TEXT NOT NULL,
+    "description" TEXT,
+    "fileSize" INTEGER,
+    "pageCount" INTEGER,
+    "isPreviewClip" BOOLEAN NOT NULL DEFAULT false,
+    "sortOrder" INTEGER NOT NULL DEFAULT 0,
+    "status" "ContentStatus" NOT NULL DEFAULT 'DRAFT',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "titleTranslations" JSONB,
+    "descriptionTranslations" JSONB,
+
+    CONSTRAINT "module_resources_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -136,6 +188,7 @@ CREATE TABLE "videos" (
     "id" TEXT NOT NULL,
     "moduleId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
+    "titleTranslations" JSONB,
     "type" "VideoType" NOT NULL DEFAULT 'EXPLANATION',
     "cloudflareStreamId" TEXT,
     "hlsUrl" TEXT,
@@ -214,11 +267,11 @@ CREATE TABLE "milestone_reports" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "weekStart" TEXT NOT NULL,
-    "responseName" INTEGER NOT NULL,
-    "eyeContact" INTEGER NOT NULL,
-    "sitting" INTEGER NOT NULL,
-    "sounds" INTEGER NOT NULL,
-    "calmness" INTEGER NOT NULL,
+    "responseName" INTEGER,
+    "eyeContact" INTEGER,
+    "sitting" INTEGER,
+    "sounds" INTEGER,
+    "calmness" INTEGER,
     "notes" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -249,6 +302,11 @@ CREATE TABLE "ask_gad_submissions" (
     "responseText" TEXT,
     "responseVideoR2Key" TEXT,
     "respondedAt" TIMESTAMP(3),
+    "assignedToId" TEXT,
+    "assignedAt" TIMESTAMP(3),
+    "escalationReason" TEXT,
+    "escalatedAt" TIMESTAMP(3),
+    "escalatedById" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -260,6 +318,9 @@ CREATE TABLE "journal_entries" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "date" TEXT NOT NULL,
+    "title" TEXT,
+    "mood" TEXT,
+    "tags" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
     "noteText" TEXT,
     "photoR2Key" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -273,6 +334,8 @@ CREATE TABLE "announcements" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "body" TEXT NOT NULL,
+    "titleTranslations" JSONB,
+    "bodyTranslations" JSONB,
     "deepLink" TEXT,
     "targetAudience" "AnnTarget" NOT NULL DEFAULT 'ALL_SUBSCRIBERS',
     "status" "AnnStatus" NOT NULL DEFAULT 'DRAFT',
@@ -344,6 +407,133 @@ CREATE TABLE "activity_logs" (
     CONSTRAINT "activity_logs_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "permissions" (
+    "id" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "description" TEXT,
+    "category" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "permissions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "roles" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "isSystem" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "roles_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "role_permissions" (
+    "roleId" TEXT NOT NULL,
+    "permissionId" TEXT NOT NULL,
+
+    CONSTRAINT "role_permissions_pkey" PRIMARY KEY ("roleId","permissionId")
+);
+
+-- CreateTable
+CREATE TABLE "user_roles" (
+    "userId" TEXT NOT NULL,
+    "roleId" TEXT NOT NULL,
+    "assignedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "user_roles_pkey" PRIMARY KEY ("userId","roleId")
+);
+
+-- CreateTable
+CREATE TABLE "user_permissions" (
+    "userId" TEXT NOT NULL,
+    "permissionId" TEXT NOT NULL,
+    "grantedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "user_permissions_pkey" PRIMARY KEY ("userId","permissionId")
+);
+
+-- CreateTable
+CREATE TABLE "audit_logs" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT,
+    "action" TEXT NOT NULL,
+    "module" TEXT NOT NULL,
+    "entityType" TEXT,
+    "entityId" TEXT,
+    "previousValue" JSONB,
+    "newValue" JSONB,
+    "ipAddress" TEXT,
+    "userAgent" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "visitor_sessions" (
+    "id" TEXT NOT NULL,
+    "sessionId" TEXT NOT NULL,
+    "userId" TEXT,
+    "source" TEXT NOT NULL,
+    "firstSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "pageViews" INTEGER NOT NULL DEFAULT 0,
+    "isBounce" BOOLEAN NOT NULL DEFAULT true,
+    "entryPath" TEXT,
+    "exitPath" TEXT,
+    "referrer" TEXT,
+    "utmSource" TEXT,
+    "utmMedium" TEXT,
+    "utmCampaign" TEXT,
+    "ip" TEXT,
+    "country" TEXT,
+    "countryCode" TEXT,
+    "region" TEXT,
+    "city" TEXT,
+    "timezone" TEXT,
+    "language" TEXT,
+    "browser" TEXT,
+    "browserVersion" TEXT,
+    "os" TEXT,
+    "osVersion" TEXT,
+    "deviceType" TEXT,
+    "screenWidth" INTEGER,
+    "screenHeight" INTEGER,
+    "appVersion" TEXT,
+
+    CONSTRAINT "visitor_sessions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "analytics_events" (
+    "id" TEXT NOT NULL,
+    "sessionId" TEXT NOT NULL,
+    "userId" TEXT,
+    "source" TEXT NOT NULL,
+    "eventType" TEXT NOT NULL,
+    "path" TEXT,
+    "label" TEXT,
+    "meta" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "analytics_events_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "app_config" (
+    "key" VARCHAR(120) NOT NULL,
+    "value" TEXT NOT NULL DEFAULT '',
+    "description" TEXT NOT NULL DEFAULT '',
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "app_config_pkey" PRIMARY KEY ("key")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
@@ -358,6 +548,12 @@ CREATE UNIQUE INDEX "user_preferences_userId_key" ON "user_preferences"("userId"
 
 -- CreateIndex
 CREATE UNIQUE INDEX "subscriptions_userId_key" ON "subscriptions"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "question_credits_txRef_key" ON "question_credits"("txRef");
+
+-- CreateIndex
+CREATE INDEX "question_credits_userId_monthKey_idx" ON "question_credits"("userId", "monthKey");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "module_groups_name_key" ON "module_groups"("name");
@@ -386,6 +582,36 @@ CREATE UNIQUE INDEX "journal_entries_userId_date_key" ON "journal_entries"("user
 -- CreateIndex
 CREATE UNIQUE INDEX "user_announcement_dismissals_userId_announcementId_key" ON "user_announcement_dismissals"("userId", "announcementId");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "permissions_code_key" ON "permissions"("code");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "roles_name_key" ON "roles"("name");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "visitor_sessions_sessionId_key" ON "visitor_sessions"("sessionId");
+
+-- CreateIndex
+CREATE INDEX "visitor_sessions_source_firstSeenAt_idx" ON "visitor_sessions"("source", "firstSeenAt");
+
+-- CreateIndex
+CREATE INDEX "visitor_sessions_countryCode_idx" ON "visitor_sessions"("countryCode");
+
+-- CreateIndex
+CREATE INDEX "visitor_sessions_userId_idx" ON "visitor_sessions"("userId");
+
+-- CreateIndex
+CREATE INDEX "visitor_sessions_lastSeenAt_idx" ON "visitor_sessions"("lastSeenAt");
+
+-- CreateIndex
+CREATE INDEX "analytics_events_source_eventType_createdAt_idx" ON "analytics_events"("source", "eventType", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "analytics_events_path_idx" ON "analytics_events"("path");
+
+-- CreateIndex
+CREATE INDEX "analytics_events_sessionId_idx" ON "analytics_events"("sessionId");
+
 -- AddForeignKey
 ALTER TABLE "child_profiles" ADD CONSTRAINT "child_profiles_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -396,7 +622,13 @@ ALTER TABLE "user_preferences" ADD CONSTRAINT "user_preferences_userId_fkey" FOR
 ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "question_credits" ADD CONSTRAINT "question_credits_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "modules" ADD CONSTRAINT "modules_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "module_groups"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "module_resources" ADD CONSTRAINT "module_resources_moduleId_fkey" FOREIGN KEY ("moduleId") REFERENCES "modules"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "videos" ADD CONSTRAINT "videos_moduleId_fkey" FOREIGN KEY ("moduleId") REFERENCES "modules"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -435,6 +667,9 @@ ALTER TABLE "module_feedback" ADD CONSTRAINT "module_feedback_moduleId_fkey" FOR
 ALTER TABLE "ask_gad_submissions" ADD CONSTRAINT "ask_gad_submissions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "ask_gad_submissions" ADD CONSTRAINT "ask_gad_submissions_assignedToId_fkey" FOREIGN KEY ("assignedToId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "journal_entries" ADD CONSTRAINT "journal_entries_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -448,3 +683,28 @@ ALTER TABLE "donations" ADD CONSTRAINT "donations_userId_fkey" FOREIGN KEY ("use
 
 -- AddForeignKey
 ALTER TABLE "scholarship_grants" ADD CONSTRAINT "scholarship_grants_grantedBy_fkey" FOREIGN KEY ("grantedBy") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_permissionId_fkey" FOREIGN KEY ("permissionId") REFERENCES "permissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_roles" ADD CONSTRAINT "user_roles_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_roles" ADD CONSTRAINT "user_roles_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_permissions" ADD CONSTRAINT "user_permissions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_permissions" ADD CONSTRAINT "user_permissions_permissionId_fkey" FOREIGN KEY ("permissionId") REFERENCES "permissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "visitor_sessions" ADD CONSTRAINT "visitor_sessions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "analytics_events" ADD CONSTRAINT "analytics_events_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "visitor_sessions"("sessionId") ON DELETE CASCADE ON UPDATE CASCADE;
+

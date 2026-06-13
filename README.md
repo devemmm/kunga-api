@@ -89,6 +89,30 @@ npm run dev          # tsx watch — hot reload
 
 ---
 
+## Database Migrations
+
+As of **V1**, the entire schema history has been consolidated into a single baseline migration: `prisma/migrations/20260613100000_init_v1`. This replaces the 14 incremental migrations accumulated during pre-V1 development (init, RBAC, audit log, question credits, etc.) — they have been removed from `prisma/migrations` and archived out of the repo.
+
+**Fresh database setup:**
+
+```bash
+# Creates every table, enum, index, FK, and default from a completely empty database
+npx prisma migrate deploy
+npx prisma generate
+
+# Seed RBAC roles/permissions + a super-admin account
+npx tsx prisma/seed-prod.ts
+```
+
+**Notes:**
+
+- `app_config` (admin-configurable pricing/feature flags, see below) is now a first-class Prisma model (`AppConfig` → `@@map("app_config")`) instead of being created at runtime via raw SQL.
+- The consolidated baseline was validated by deploying it to a clean `kungav1` database and diffing the resulting schema (tables, columns, types, indexes, foreign keys) against the live `kunga` production database — zero structural differences.
+- Existing environments (e.g. `kunga`) had their migration history resolved to this single baseline via `prisma migrate resolve --applied 20260613100000_init_v1`, with no data loss — only the `_prisma_migrations` bookkeeping table was affected.
+- Going forward, all schema changes should be new migrations created with `npx prisma migrate dev --name <change>` on top of `20260613100000_init_v1`.
+
+---
+
 ## Environment Variables
 
 ```env
