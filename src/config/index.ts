@@ -26,8 +26,9 @@ export const config = {
   },
 
   google: {
-    clientId:    process.env.GOOGLE_CLIENT_ID    ?? '',
-    iosClientId: process.env.GOOGLE_IOS_CLIENT_ID ?? '',
+    clientId:        process.env.GOOGLE_CLIENT_ID         ?? '',
+    iosClientId:     process.env.GOOGLE_IOS_CLIENT_ID     ?? '',
+    androidClientId: process.env.GOOGLE_ANDROID_CLIENT_ID ?? '',
   },
 
   cloudflare: {
