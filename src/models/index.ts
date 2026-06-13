@@ -133,8 +133,18 @@ export const AskGadResponseDto = z.object({
   responseVideoR2Key: z.string().optional(),
 });
 
+export const AskGadAssignDto = z.object({
+  assignedToId: z.string(),
+});
+
+export const AskGadEscalateDto = z.object({
+  reason: z.string().min(1),
+});
+
 export type AskGadSubmissionInput = z.infer<typeof AskGadSubmissionDto>;
 export type AskGadResponseInput = z.infer<typeof AskGadResponseDto>;
+export type AskGadAssignInput = z.infer<typeof AskGadAssignDto>;
+export type AskGadEscalateInput = z.infer<typeof AskGadEscalateDto>;
 
 // ─── PROGRESS / ROUTINE ──────────────────────────────────────────────────────
 

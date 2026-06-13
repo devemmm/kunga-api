@@ -3,7 +3,14 @@ import { config } from '../config/index.js';
 import { presignedPutMinio, minioPublicUrl } from '../lib/minio.js';
 import { sendExpoPush, buildMessages } from '../lib/expo-push.js';
 import { sendAskGadResponseEmail } from '../lib/email.js';
+import { RbacService } from './rbac.service.js';
 import type { AskGadSubmissionInput, AskGadResponseInput } from '../models/index.js';
+
+interface ActorMeta {
+  userId?: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
 
 // ─── Config helper ────────────────────────────────────────────────────────────
 
@@ -192,13 +199,15 @@ export const AskGadService = {
     return { uploadUrl, fileUrl, key, expiresIn: 3600 };
   },
 
-  async getQueue(params?: { status?: string; search?: string; page?: number; limit?: number }) {
-    const { status, search, page = 1, limit = 50 } = params ?? {};
+  async getQueue(params?: { status?: string; search?: string; assignedToId?: string; page?: number; limit?: number }) {
+    const { status, search, assignedToId, page = 1, limit = 50 } = params ?? {};
     const skip = (page - 1) * limit;
     const where: any = {};
     if (status === 'SUBMITTED' || status === 'pending') where.status = 'SUBMITTED';
     else if (status === 'RESPONDED' || status === 'responded') where.status = 'RESPONDED';
     else if (status === 'UNDER_REVIEW') where.status = 'UNDER_REVIEW';
+    else if (status === 'ESCALATED') where.status = 'ESCALATED';
+    if (assignedToId) where.assignedToId = assignedToId;
     if (search) {
       where.OR = [
         { questionText: { contains: search, mode: 'insensitive' } },
@@ -217,6 +226,7 @@ export const AskGadService = {
               childProfile: { select: { childName: true, ageMonths: true, challenges: true } },
             },
           },
+          assignedTo: { select: { id: true, name: true, email: true } },
         },
       }),
       prisma.askGadSubmission.count({ where }),
@@ -291,5 +301,102 @@ export const AskGadService = {
     const key = `ask-gad/responses/${Date.now()}.mp4`;
     const { uploadUrl, fileUrl } = await presignedPutMinio(key, 3600);
     return { uploadUrl, fileUrl, key, expiresIn: 3600 };
+  },
+
+  async getAssignableAgents() {
+    const agents = await prisma.user.findMany({
+      where: { role: 'ADMIN', isActive: true },
+      select: {
+        id: true, name: true, email: true,
+        roleAssignments: { select: { role: { select: { name: true } } } },
+      },
+      orderBy: { name: 'asc' },
+    });
+    return {
+      agents: agents.map(a => ({
+        id: a.id, name: a.name, email: a.email,
+        roles: a.roleAssignments.map(ra => ra.role.name),
+      })),
+    };
+  },
+
+  async assign(id: string, assignedToId: string, actor: ActorMeta) {
+    const assignee = await prisma.user.findUnique({
+      where: { id: assignedToId },
+      select: { id: true, role: true, name: true, pushToken: true },
+    });
+    if (!assignee || assignee.role !== 'ADMIN') {
+      throw Object.assign(new Error('Assignee not found'), { status: 404 });
+    }
+
+    const existing = await prisma.askGadSubmission.findUnique({ where: { id }, select: { status: true, assignedToId: true } });
+    if (!existing) throw Object.assign(new Error('Submission not found'), { status: 404 });
+
+    const updated = await prisma.askGadSubmission.update({
+      where: { id },
+      data: {
+        assignedToId,
+        assignedAt: new Date(),
+        ...(existing.status === 'SUBMITTED' ? { status: 'UNDER_REVIEW' } : {}),
+      },
+    });
+
+    await RbacService.writeAuditLog({
+      userId: actor.userId, action: 'askgad.assign', module: 'AskGad',
+      entityType: 'AskGadSubmission', entityId: id,
+      previousValue: { assignedToId: existing.assignedToId },
+      newValue: { submissionId: id, assignedToId },
+      ipAddress: actor.ipAddress, userAgent: actor.userAgent,
+    });
+
+    if (assignee.pushToken) {
+      await sendExpoPush(buildMessages([assignee.pushToken], {
+        title: '📋 New question assigned to you',
+        body:  'A new Ask Dr. Gad question has been assigned to you for review.',
+        sound: 'default', priority: 'high',
+        data:  { screen: 'AskGadAdmin', submissionId: id },
+      }));
+    }
+
+    return { submission: updated };
+  },
+
+  async escalate(id: string, reason: string, actor: ActorMeta) {
+    const existing = await prisma.askGadSubmission.findUnique({ where: { id }, select: { status: true } });
+    if (!existing) throw Object.assign(new Error('Submission not found'), { status: 404 });
+
+    const updated = await prisma.askGadSubmission.update({
+      where: { id },
+      data: {
+        status: 'ESCALATED',
+        escalationReason: reason,
+        escalatedAt: new Date(),
+        escalatedById: actor.userId,
+      },
+    });
+
+    await RbacService.writeAuditLog({
+      userId: actor.userId, action: 'askgad.escalate', module: 'AskGad',
+      entityType: 'AskGadSubmission', entityId: id,
+      previousValue: { status: existing.status },
+      newValue: { submissionId: id, reason },
+      ipAddress: actor.ipAddress, userAgent: actor.userAgent,
+    });
+
+    const superAdmins = await prisma.user.findMany({
+      where: { role: 'ADMIN', isActive: true, roleAssignments: { some: { role: { name: 'Super Admin' } } } },
+      select: { pushToken: true },
+    });
+    const tokens = superAdmins.map(a => a.pushToken);
+    if (tokens.some(Boolean)) {
+      await sendExpoPush(buildMessages(tokens, {
+        title: '🚨 Question escalated',
+        body:  'An Ask Dr. Gad question has been escalated and needs attention.',
+        sound: 'default', priority: 'high',
+        data:  { screen: 'AskGadAdmin', submissionId: id },
+      }));
+    }
+
+    return { submission: updated };
   },
 };

@@ -18,6 +18,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { seedRbac } from './rbac-seed';
 
 const prisma = new PrismaClient();
 
@@ -639,6 +640,9 @@ async function main() {
     prisma.activityLog.count(),
     prisma.announcement.count(),
   ]);
+
+  // ── 13. RBAC: PERMISSIONS, ROLES, SUPER ADMIN ASSIGNMENT ───────────────────
+  await seedRbac(prisma);
 
   console.log(`
 ╔══════════════════════════════════════════╗

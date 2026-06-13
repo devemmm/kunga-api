@@ -16,7 +16,7 @@ import {
   OverrideSubscriptionDto, RevenueCatSyncDto,
   FlutterwaveInitiateDto, StripeCheckoutDto,
   InitiateDonationDto, GrantScholarshipDto,
-  AskGadSubmissionDto, AskGadResponseDto,
+  AskGadSubmissionDto, AskGadResponseDto, AskGadAssignDto, AskGadEscalateDto,
   CreateAnnouncementDto, UpdateAnnouncementDto,
 } from '../models/index.js';
 
@@ -204,9 +204,31 @@ export const AskGadController = {
     return reply.send(await AskGadService.getUploadUrl());
   },
   async getQueue(req: FastifyRequest, reply: FastifyReply) {
-    const { status, search, page, limit } = req.query as any;
-    const result = await AskGadService.getQueue({ status, search, page: Number(page ?? 1), limit: Number(limit ?? 50) });
+    const { status, search, assignedToId, page, limit } = req.query as any;
+    const result = await AskGadService.getQueue({ status, search, assignedToId, page: Number(page ?? 1), limit: Number(limit ?? 50) });
     return reply.send(result);
+  },
+
+  async getAssignableAgents(_req: FastifyRequest, reply: FastifyReply) {
+    return reply.send(await AskGadService.getAssignableAgents());
+  },
+
+  async assign(req: FastifyRequest, reply: FastifyReply) {
+    const { id } = req.params as { id: string };
+    const { assignedToId } = AskGadAssignDto.parse(req.body);
+    const actor = (req as any).currentUser;
+    return reply.send(await AskGadService.assign(id, assignedToId, {
+      userId: actor?.id, ipAddress: req.ip, userAgent: req.headers['user-agent'] as string | undefined,
+    }));
+  },
+
+  async escalate(req: FastifyRequest, reply: FastifyReply) {
+    const { id } = req.params as { id: string };
+    const { reason } = AskGadEscalateDto.parse(req.body);
+    const actor = (req as any).currentUser;
+    return reply.send(await AskGadService.escalate(id, reason, {
+      userId: actor?.id, ipAddress: req.ip, userAgent: req.headers['user-agent'] as string | undefined,
+    }));
   },
 
   async getById(req: FastifyRequest, reply: FastifyReply) {
@@ -284,6 +306,10 @@ export const AdminController = {
   async getActivityLog(req: FastifyRequest, reply: FastifyReply) {
     const { page, limit } = req.query as any;
     return reply.send(await AdminService.getActivityLog(Number(page ?? 1), Number(limit ?? 30)));
+  },
+  async getAuditLog(req: FastifyRequest, reply: FastifyReply) {
+    const { page, limit, module, action, search } = req.query as any;
+    return reply.send(await AdminService.getAuditLog(Number(page ?? 1), Number(limit ?? 30), { module, action, search }));
   },
   async getModuleStats(_req: FastifyRequest, reply: FastifyReply) {
     const stats = await AdminService.getModuleStats();

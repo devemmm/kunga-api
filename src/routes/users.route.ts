@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { UserController } from '../controllers/user.controller.js';
-import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { requireAuth, requirePermission } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 
 export async function usersRoutes(server: FastifyInstance) {
@@ -185,21 +185,21 @@ export async function usersRoutes(server: FastifyInstance) {
         },
       },
     },
-    preHandler: [requireAdmin],
+    preHandler: [requirePermission('VIEW_USERS')],
   }, UserController.list);
 
   server.get('/:id', {
     schema: { tags: ['Users'], summary: '[Admin] Get single user with full details', security: [{ bearerAuth: [] }] },
-    preHandler: [requireAdmin],
+    preHandler: [requirePermission('VIEW_USERS')],
   }, UserController.getById);
 
   server.post('/:id/send-email', {
     schema: { tags: ['Users'], summary: '[Admin] Send email to a user', security: [{ bearerAuth: [] }] },
-    preHandler: [requireAdmin],
+    preHandler: [requirePermission('MANAGE_USERS')],
   }, UserController.sendEmail);
 
   server.get('/export/csv', {
     schema: { tags: ['Users'], summary: '[Admin] Export users as CSV', security: [{ bearerAuth: [] }] },
-    preHandler: [requireAdmin],
+    preHandler: [requirePermission('VIEW_USERS')],
   }, UserController.exportCSV);
 }

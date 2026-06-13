@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { parseUserAgent } from '../lib/ua.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -114,6 +115,46 @@ export const AdminService = {
         country:     l.ipAddress ? (ipMap[l.ipAddress]?.country     ?? null) : null,
         countryCode: l.ipAddress ? (ipMap[l.ipAddress]?.countryCode ?? null) : null,
       })),
+      total, page, limit,
+    };
+  },
+
+  async getAuditLog(page = 1, limit = 30, filters?: { module?: string; action?: string; search?: string }) {
+    const skip = (page - 1) * limit;
+    const where: any = {};
+    if (filters?.module) where.module = filters.module;
+    if (filters?.action) where.action = { contains: filters.action, mode: 'insensitive' };
+    if (filters?.search) {
+      where.OR = [
+        { action: { contains: filters.search, mode: 'insensitive' } },
+        { module: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' } }),
+      prisma.auditLog.count({ where }),
+    ]);
+
+    const userIds = [...new Set(logs.map(l => l.userId).filter(Boolean))] as string[];
+    const users   = await prisma.user.findMany({
+      where:  { id: { in: userIds } },
+      select: { id: true, name: true, email: true, avatarUrl: true },
+    });
+    const userMap = Object.fromEntries(users.map(u => [u.id, u]));
+
+    return {
+      logs: logs.map(l => {
+        const ua = parseUserAgent(l.userAgent ?? '');
+        return {
+          ...l,
+          userName:   l.userId ? (userMap[l.userId]?.name      ?? null) : null,
+          userEmail:  l.userId ? (userMap[l.userId]?.email     ?? null) : null,
+          userAvatar: l.userId ? (userMap[l.userId]?.avatarUrl ?? null) : null,
+          browser:    ua.browser,
+          device:     ua.deviceType,
+        };
+      }),
       total, page, limit,
     };
   },

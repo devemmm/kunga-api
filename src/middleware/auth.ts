@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { prisma } from '../lib/prisma.js';
+import { RbacService } from '../services/rbac.service.js';
 
 export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
   try {
@@ -9,6 +10,9 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
     if (!user) {
       return reply.status(401).send({ error: 'User not found' });
     }
+    if (user.role === 'ADMIN' && user.isActive === false) {
+      return reply.status(403).send({ error: 'Account deactivated' });
+    }
     (req as any).currentUser = user;
   } catch {
     return reply.status(401).send({ error: 'Unauthorized' });
@@ -17,10 +21,24 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
 
 export async function requireAdmin(req: FastifyRequest, reply: FastifyReply) {
   await requireAuth(req, reply);
+  if (reply.sent) return;
   const user = (req as any).currentUser;
   if (user?.role !== 'ADMIN') {
     return reply.status(403).send({ error: 'Admin access required' });
   }
+}
+
+export function requirePermission(...codes: string[]) {
+  return async function (req: FastifyRequest, reply: FastifyReply) {
+    await requireAdmin(req, reply);
+    if (reply.sent) return;
+
+    const user = (req as any).currentUser;
+    const ok = await RbacService.hasPermission(user.id, ...codes);
+    if (!ok) {
+      return reply.status(403).send({ error: 'Insufficient permissions' });
+    }
+  };
 }
 
 export async function requireSubscription(req: FastifyRequest, reply: FastifyReply) {

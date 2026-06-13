@@ -3,6 +3,7 @@ import { OAuth2Client } from 'google-auth-library';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { redis } from '../lib/redis.js';
+import { RbacService } from './rbac.service.js';
 import { config } from '../config/index.js';
 import { sendPasswordResetEmail, sendWelcomeEmail, sendOtpEmail, sendMfaEnabledEmail, sendMfaDisabledEmail } from '../lib/email.js';
 import type {
@@ -350,6 +351,17 @@ export const AuthService = {
     ]);
     if (!rawUser) return { user: null, childProfile, subscription, preferences };
     const { passwordHash: _, ...user } = rawUser;
+
+    if (rawUser.role === 'ADMIN') {
+      const roleAssignments = await prisma.userRoleAssignment.findMany({
+        where: { userId },
+        include: { role: true },
+      });
+      const effective = await RbacService.getEffectivePermissions(userId);
+      (user as any).roles = roleAssignments.map(ra => ({ id: ra.role.id, name: ra.role.name }));
+      (user as any).effectivePermissions = effective === 'ALL' ? await RbacService.getAllPermissionCodes() : Array.from(effective);
+    }
+
     return { user, childProfile, subscription, preferences };
   },
 
