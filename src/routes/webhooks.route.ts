@@ -102,7 +102,7 @@ export async function webhooksRoutes(server: FastifyInstance) {
         await prisma.subscription.upsert({
           where: { userId },
           update: { status, stripePriceId: sub.items?.data[0]?.price?.id, platform: 'stripe', periodEnd: new Date(sub.current_period_end * 1000) },
-          create: { userId, plan: 'monthly', status, platform: 'stripe', periodEnd: new Date(sub.current_period_end * 1000) },
+          create: { userId, plan: 'monthly', status, platform: 'stripe', stripePriceId: sub.items?.data[0]?.price?.id, periodEnd: new Date(sub.current_period_end * 1000) },
         });
         await prisma.user.update({ where: { id: userId }, data: { subscriptionStatus: status } });
       }

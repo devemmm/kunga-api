@@ -66,4 +66,5 @@ export const FIXTURES = {
   PLAIN_USER: { email: 'plain-user@test.kungabasics.com', name: 'Plain User', role: 'PARENT' as const, subscriptionStatus: 'ACTIVE' as const },
   NO_SUBSCRIPTION_USER: { email: 'no-sub-user@test.kungabasics.com', name: 'No Subscription User', role: 'PARENT' as const, subscriptionStatus: 'NONE' as const },
   CONTENT_MANAGER: { email: 'content-manager@test.kungabasics.com', name: 'Content Manager', role: 'ADMIN' as const, roleNames: ['Content Manager'] },
+  FINANCE_OFFICER: { email: 'finance-officer@test.kungabasics.com', name: 'Finance Officer', role: 'ADMIN' as const, roleNames: ['Finance Officer'] },
 };

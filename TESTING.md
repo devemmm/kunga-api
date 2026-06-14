@@ -66,8 +66,8 @@ npm run test:coverage   # run with coverage report (coverage/html-report/index.h
     set of users but doesn't pay the cost of re-seeding RBAC/config every time.
 - `tests/helpers/auth.ts` — `createUser()`, `loginAs()`, `createAndLogin()`,
   and `FIXTURES` (`SUPER_ADMIN`, `SUPPORT_AGENT`, `SUPPORT_MANAGER`,
-  `PLAIN_USER`, `NO_SUBSCRIPTION_USER`, `CONTENT_MANAGER`) matching the roles
-  seeded by `seedRbac`.
+  `PLAIN_USER`, `NO_SUBSCRIPTION_USER`, `CONTENT_MANAGER`,
+  `FINANCE_OFFICER`) matching the roles seeded by `seedRbac`.
 - `tests/helpers/db.ts` also exports `seedModuleFixtures()` — creates a stable
   set of `Module`/`Video` fixtures (one PUBLISHED + one DRAFT module, two
   videos under the published module) for suites that need real module/video
@@ -115,7 +115,7 @@ describe('My feature', () => {
 For protected routes, assert: `401` (no token), `403` (wrong role/permission),
 and `200`/`201` (authorized) — that's the pattern used throughout Phase 1.
 
-## Phase 1 & 2a coverage
+## Phase 1, 2a & 2b coverage
 
 - `tests/auth.test.ts` — register, login, refresh, `/auth/me`
   (roles + effectivePermissions), logout, forgot/reset password.
@@ -142,6 +142,34 @@ and `200`/`201` (authorized) — that's the pattern used throughout Phase 1.
 - `tests/users-profile.test.ts` — `GET`/`PATCH /users/me`, change-password
   (incl. 401 on wrong current password), child profile create/update,
   progress-summary HomeScreen shape.
+- `tests/subscriptions.test.ts` — subscription status/list/details, admin
+  override/cancel/restore (`MANAGE_SUBSCRIPTIONS` vs `VIEW_SUBSCRIPTIONS`
+  permission gating), RevenueCat sync (active/expired). Mocks
+  `lib/email.js`'s `sendSubscriptionCancelledEmail`/`sendSubscriptionRestoredEmail`.
+- `tests/payments.test.ts` — Flutterwave initiate/verify/callback (incl.
+  alreadyActive short-circuit and "no matching subscription"), Stripe
+  checkout placeholder, mobile-money list (`VIEW_MOBILE_MONEY`) and manual
+  activation (`MANAGE_SUBSCRIPTIONS`). Mocks `global.fetch` per-test via
+  `vi.spyOn(globalThis, 'fetch')` (Flutterwave REST calls).
+- `tests/donations.test.ts` — donation initiate (Flutterwave + Stripe),
+  admin list/stats (`VIEW_DONATIONS`), public donor wall, scholarship
+  grant/list (incl. grant to non-existent email). Mocks `global.fetch` and
+  `lib/email.js`'s `sendScholarshipGrantedEmail`.
+- `tests/webhooks.test.ts` — Flutterwave webhook signature verification
+  (`verif-hash` vs `FLUTTERWAVE_WEBHOOK_HASH`) and all three `tx_ref`
+  branches (`KB-`/`DON-`/`QCR-`), Stripe webhook (subscription
+  updated/deleted, donation payment_intent — note: signature verification is
+  *not yet implemented* in the route, so these tests don't assert on it),
+  RevenueCat webhook (status map incl. `INITIAL_PURCHASE`/`EXPIRATION`).
+  Mocks `lib/email.js` and `lib/expo-push.js`.
+- `tests/ask-gad-credits.test.ts` — question-credit purchase
+  (`POST /ask-gad/credits/purchase`, 402 without subscription, `fetch` mock)
+  and verification (`GET /ask-gad/credits/verify`, incl. alreadyActive
+  short-circuit and 404 for unknown `tx_ref`).
+
+New `.env.test` keys for Phase 2b: `FLUTTERWAVE_SECRET_KEY` (placeholder —
+all Flutterwave `fetch()` calls are mocked) and `FLUTTERWAVE_WEBHOOK_HASH`
+(used by `tests/webhooks.test.ts` to build a valid `verif-hash` header).
 
 ## CI
 
@@ -150,16 +178,12 @@ and `200`/`201` (authorized) — that's the pattern used throughout Phase 1.
 deploy`, and `npm run test:coverage`. The coverage report is uploaded as a
 build artifact.
 
-## Phase 2b/2c roadmap (not yet implemented)
+## Phase 2c roadmap (not yet implemented)
 
 Phase 2a covered the core app domains (Tier A — modules, videos, progress/
-routine/journal/milestones, user profiles). Remaining API coverage:
+routine/journal/milestones, user profiles) and Phase 2b covered payments/
+subscriptions/donations/webhooks (Tier B). Remaining API coverage:
 
-- **Phase 2b — payments & subscriptions**: `tests/subscriptions.test.ts`,
-  `tests/payments.test.ts`, `tests/donations.test.ts`,
-  `tests/webhooks.test.ts` — Flutterwave/Stripe/RevenueCat flows, donations,
-  question credits, webhook signature verification. Needs `fetch()` mocking,
-  webhook signature fixtures, and email/push mocks.
 - **Phase 2c — announcements & analytics**: `tests/announcements.test.ts`,
   `tests/analytics.test.ts` — admin CRUD + viewer tracking, site analytics
   aggregation. Needs Expo push and GeoIP mocking.
