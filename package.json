@@ -15,7 +15,8 @@
     "db:studio": "prisma studio",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:reset-db": "node scripts/reset-test-db.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1053.0",

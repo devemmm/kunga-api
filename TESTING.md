@@ -330,10 +330,57 @@ iOS Simulator). It boots an iPhone 16 simulator, builds the app with
 
 Results are uploaded as a JUnit XML artifact; screenshots on failure.
 
-## Phase 3d+ roadmap
+## Phase 3d — Coverage thresholds + regression checklist ✓
 
-- **Coverage targets** — 90% API route coverage, 80% overall code coverage,
-  enforced via CI coverage thresholds.
-- **Regression suite documentation** — a maintained checklist of
-  user-facing flows to manually verify before each release, until E2E
-  coverage replaces it.
+### Coverage thresholds
+
+`vitest.config.ts` now enforces minimum coverage on every `npm run test:coverage`
+run. CI fails if any threshold is missed:
+
+| Metric | Threshold |
+|--------|-----------|
+| Lines | 80% |
+| Statements | 80% |
+| Functions | 80% |
+| Branches | 70% |
+
+Branches are set lower because many branch paths (error boundary fallbacks,
+optional chaining) are genuinely hard to reach through HTTP tests alone.
+
+### Regression checklist
+
+`REGRESSION.md` (repo root of `kunga-api`) is a 50-item manual verification
+checklist covering all 11 user-facing flow areas:
+
+1. Authentication (register, login, MFA, forgot password, token refresh, logout)
+2. Onboarding (slides, Skip, Get Started, re-open behaviour)
+3. Home screen (greeting, routine, streak, announcements, modules)
+4. Modules (list, search, lock/unlock, video playback, bookmarks, notes)
+5. Progress (charts, journal, milestone reports, streak)
+6. Ask Dr. Gad (free vs premium, submit, quota, credits)
+7. Settings (profile, password, subscription, notifications, language, theme, export, delete)
+8. Paywall & subscriptions (Annual/Monthly, activate, content unlock, expiry)
+9. Notifications (permission, foreground display, deep-link tap)
+10. Admin portal (dashboard, support team, roles, audit log, announcements, pricing)
+11. API / backend (health, public endpoints, JWT expiry, RBAC)
+
+Run through this checklist before every `staging` → `prod` promotion. The
+sign-off table at the bottom captures Dev / QA / Release manager approval.
+
+### Resetting the test database
+
+If tests fail with P2002 (unique constraint) or P2003 (FK constraint) errors,
+the `kunga_test` database has stale data — usually caused by interrupting a
+test run mid-way. Reset it with:
+
+```bash
+npm run test:reset-db
+```
+
+This runs `scripts/reset-test-db.mjs` which reads credentials from `.env.test`
+(no plaintext password on the command line) and applies `prisma migrate reset
+--force --skip-seed`. Run it once, then `npm run test` as normal.
+
+**Never run two test runs concurrently against the same `kunga_test` database** —
+they will corrupt each other's data. CI is safe because each run gets a fresh
+`postgres:16` service container.
