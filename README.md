@@ -43,6 +43,9 @@ kunga-api/
 ├── docker-compose.yml      # Redis + kunga-api services
 ├── entrypoint.sh           # Runs migrations → starts server
 ├── TESTING.md              # Full test setup, helpers, and coverage docs
+├── REGRESSION.md           # Manual release verification checklist (50 items)
+├── scripts/
+│   └── reset-test-db.mjs   # Wipes kunga_test and re-migrates (npm run test:reset-db)
 ├── prisma/
 │   ├── schema.prisma       # Full database schema
 │   ├── migrations/         # SQL migration history
@@ -147,38 +150,60 @@ npx tsx prisma/seed.ts
 
 ## Testing
 
-### Backend API tests (Vitest)
+See [TESTING.md](./TESTING.md) for full setup, helper docs, coverage details,
+and how to write new tests. Summary:
 
-Backend API tests run via **Vitest** + Fastify `.inject()` against a dedicated
-`kunga_test` database. See [TESTING.md](./TESTING.md) for full setup, helper
-documentation, and how to write new tests.
+### Phase 1–2c — Backend API (Vitest)
 
 ```bash
-npm run test            # run all tests
-npm run test:coverage   # run with coverage report
+npm run test              # run all 228 tests
+npm run test:coverage     # run with coverage report (≥80% enforced)
+npm run test:reset-db     # reset kunga_test DB if tests fail with P2002/P2003
 ```
 
-17 test suites, 228+ tests covering auth, RBAC, modules, videos, progress,
-subscriptions, payments, donations, webhooks, announcements, and analytics.
-CI runs on every push/PR to `dev`, `staging`, and `prod`
-(`.github/workflows/test.yml`) against a `postgres:16` service container.
+17 test suites · 228 tests · auth, RBAC, modules, videos, progress,
+subscriptions, payments, donations, webhooks, announcements, analytics.
+CI: `.github/workflows/test.yml` — fresh `postgres:16` container on every push.
+Coverage thresholds: **80%** lines/statements/functions · **70%** branches.
 
-### Admin portal E2E tests (Playwright)
-
-Browser automation tests for `kunga-admin-portal` live in that project under
-`e2e/`. They run against a Vite dev server with all API calls mocked — no real
-backend needed.
+### Phase 3a — Admin portal E2E (Playwright)
 
 ```bash
 cd ../kunga-admin-portal
 npx playwright install chromium   # first time only
 npm run test:e2e                  # headless
 npm run test:e2e:headed           # watch the browser
-SLOW_MO=500 npx playwright test --headed  # slow motion
 ```
 
-19 tests across 6 spec files (auth, dashboard, support team, roles, audit log,
-announcements). See `kunga-admin-portal/README.md` for full details.
+19 tests · 6 spec files (auth, dashboard, support team, roles, audit log,
+announcements) · all API calls mocked via `page.route()`.
+
+### Phase 3b — Admin portal unit tests (Vitest + RTL)
+
+```bash
+cd ../kunga-admin-portal
+npm run test              # 44 unit tests
+npm run test:coverage     # with HTML coverage report
+```
+
+44 tests · UI components + i18n hook · jsdom environment.
+
+### Phase 3c — Mobile app E2E (Maestro)
+
+```bash
+cd ../kunga-mobile-app
+brew install mobile-dev-inc/tap/maestro   # once
+TEST_EMAIL=user@example.com TEST_PASSWORD=secret npm run test:mobile
+```
+
+9 flows · onboarding, login, register, home, modules, ask_gad, settings,
+paywall · runs against real `kunga-api` backend.
+
+### Phase 3d — Coverage thresholds + regression checklist
+
+- Coverage thresholds enforced in CI (see above).
+- [REGRESSION.md](./REGRESSION.md) — 50-item manual checklist for
+  staging → prod sign-off (Dev / QA / Release manager).
 
 ---
 
