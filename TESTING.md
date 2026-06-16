@@ -283,10 +283,55 @@ npm run test:coverage    # with HTML coverage report
 `.github/workflows/unit.yml` runs `npm run test:coverage` on every push/PR.
 Coverage HTML report uploaded as artifact (7-day retention).
 
-## Phase 3c+ roadmap (not yet implemented)
+## Phase 3c — Mobile app E2E (Maestro) ✓
 
-- **Mobile app E2E** — Detox/Maestro flows for onboarding, subscription,
-  Ask Dr. Gad submission, module playback.
+End-to-end flows for `kunga-mobile-app` (Expo SDK 56 / React Native 0.85)
+using **Maestro**. Flows run against a real `kunga-api` backend — no mocking.
+App must be running in Expo Go or installed on a simulator/device.
+
+### Quick start
+
+```bash
+# Install Maestro CLI (once)
+brew install mobile-dev-inc/tap/maestro
+
+# Run all flows (Expo Go must already be open with the app loaded)
+cd kunga-mobile-app
+TEST_EMAIL=user@example.com TEST_PASSWORD=secret npm run test:mobile
+
+# Run a single flow
+TEST_EMAIL=user@example.com TEST_PASSWORD=secret npm run test:mobile:login
+```
+
+`TEST_EMAIL` / `TEST_PASSWORD` must be credentials for a real account in the
+`kungav1` database. Never commit real credentials — pass them as env vars.
+
+### Flow files
+
+| File | What is covered |
+|------|----------------|
+| `.maestro/onboarding.yaml` | Slide navigation, Skip, Get Started → Register screen |
+| `.maestro/login.yaml` | Valid credentials → home tab visible |
+| `.maestro/login_invalid.yaml` | Bad credentials → "Login failed" alert |
+| `.maestro/register.yaml` | Registration form → child setup or home |
+| `.maestro/home.yaml` | Today's Routine + Your Modules sections |
+| `.maestro/modules.yaml` | Modules tab, search bar visible |
+| `.maestro/ask_gad.yaml` | Ask Dr. Gad tab title and subtitle |
+| `.maestro/settings.yaml` | Settings tab, subscription section |
+| `.maestro/paywall.yaml` | Upgrade → Paywall screen content |
+
+### CI
+
+`.github/workflows/mobile-e2e.yml` runs on `macos-latest` (required for
+iOS Simulator). It boots an iPhone 16 simulator, builds the app with
+`expo run:ios`, and runs all Maestro flows. Secrets required:
+- `EXPO_TOKEN` — for Expo CLI authentication
+- `MAESTRO_TEST_EMAIL` / `MAESTRO_TEST_PASSWORD` — staging test-user credentials
+
+Results are uploaded as a JUnit XML artifact; screenshots on failure.
+
+## Phase 3d+ roadmap
+
 - **Coverage targets** — 90% API route coverage, 80% overall code coverage,
   enforced via CI coverage thresholds.
 - **Regression suite documentation** — a maintained checklist of
