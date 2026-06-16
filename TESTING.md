@@ -198,20 +198,60 @@ all Flutterwave `fetch()` calls are mocked) and `FLUTTERWAVE_WEBHOOK_HASH`
 deploy`, and `npm run test:coverage`. The coverage report is uploaded as a
 build artifact.
 
-## Phase 2c roadmap (not yet implemented)
+## Phase 3a — Admin portal E2E (Playwright) ✓
 
-Phase 2a covered the core app domains (Tier A — modules, videos, progress/
-routine/journal/milestones, user profiles) and Phase 2b covered payments/
-subscriptions/donations/webhooks (Tier B). Remaining API coverage:
+End-to-end browser tests for `kunga-admin-portal` (React 18 + Vite) using
+**Playwright**. All API calls are intercepted via `page.route()` — no real
+backend required (though tests are also verified to pass with `kunga-api`
+running locally).
 
-- **Phase 2c — announcements & analytics**: `tests/announcements.test.ts`,
-  `tests/analytics.test.ts` — admin CRUD + viewer tracking, site analytics
-  aggregation. Needs Expo push and GeoIP mocking.
+### Quick start
 
-## Phase 3+ roadmap (not yet implemented)
+```bash
+cd kunga-admin-portal
+npx playwright install chromium   # first time only
+npm run test:e2e                  # headless (fastest)
+npm run test:e2e:ui               # Playwright UI — best for debugging
+SLOW_MO=500 npx playwright test --headed   # watch actions at 500 ms/step
+```
 
-- **Admin portal E2E (Playwright)** — login flow, RBAC-gated navigation,
-  Support Team / Roles / Ask Dr. Gad / Audit Log pages, pricing config.
+### Recording video
+
+Each test writes a `.webm` video to `test-results/<test-name>/video.webm`
+(enabled by `video: 'on'` in `playwright.config.ts`). To capture a single
+continuous recording of all 19 tests, use QuickTime Screen Recording while
+running with `--headed`.
+
+### Test files
+
+| File | Tests | What is covered |
+|---|---|---|
+| `e2e/auth.spec.ts` | 5 | Login success, invalid credentials, MFA OTP screen, MFA verify, pre-authenticated redirect |
+| `e2e/dashboard.spec.ts` | 2 | Stat cards render mocked values, activity log items |
+| `e2e/support-team.spec.ts` | 2 | List members, create member → credentials modal |
+| `e2e/roles.spec.ts` | 3 | List roles, create role modal, permission checkboxes |
+| `e2e/audit-log.spec.ts` | 3 | List rows, module filter visible, filter triggers re-fetch |
+| `e2e/announcements.spec.ts` | 4 | List, form inputs, save draft, publish with confirm dialog |
+
+### Helpers
+
+- `e2e/helpers/auth.ts` — `loginAsAdmin()`: injects a fake JWT into
+  `localStorage` via `addInitScript` (runs before page JS, essential because
+  `api.js` reads the token at ES-module-eval time), mocks `/auth/me` and
+  `/analytics/track` (silenced so real-backend 401s don't log the test user
+  out when running alongside a live `kunga-api`).
+- `e2e/helpers/routes.ts` — `mockGet/mockPost/mockPatch/mockDelete` wrappers
+  using `**${path}*` patterns (trailing `*` matches query params).
+- `e2e/fixtures/responses.ts` — typed mock payloads for all pages.
+
+### CI
+
+`.github/workflows/e2e.yml` runs all 19 tests on push/PR to `dev`/`staging`/
+`prod` using Node 20 + Chromium. Playwright report uploaded as artifact always;
+`test-results/` uploaded on failure.
+
+## Phase 3b+ roadmap (not yet implemented)
+
 - **Frontend component tests** — admin portal React components in isolation
   (Vitest + React Testing Library).
 - **Mobile app E2E** — Detox/Maestro flows for onboarding, subscription,

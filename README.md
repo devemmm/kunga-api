@@ -42,20 +42,43 @@ kunga-api/
 ├── Dockerfile              # Multi-stage: builder (tsc) → production (node)
 ├── docker-compose.yml      # Redis + kunga-api services
 ├── entrypoint.sh           # Runs migrations → starts server
+├── TESTING.md              # Full test setup, helpers, and coverage docs
 ├── prisma/
 │   ├── schema.prisma       # Full database schema
 │   ├── migrations/         # SQL migration history
 │   ├── seed.ts             # Development seed data (30 dummy users, modules, RBAC, etc.)
 │   └── seed-prod.ts        # Production seed (admin user, RBAC, app_config, module groups)
-└── src/
-    ├── server.ts           # Fastify app setup, plugins, route registration
-    ├── config/index.ts     # All env vars (single source of truth)
-    ├── controllers/        # Request handlers
-    ├── lib/                # prisma, redis, email, expo-push, minio, r2, logger
-    ├── middleware/auth.ts  # requireAuth / requireAdmin / requireSubscription
-    ├── models/             # Zod DTOs for all request bodies
-    ├── routes/             # Route registrations + webhook handlers
-    └── services/           # Business logic (admin, ask-gad, auth, donations, etc.)
+├── src/
+│   ├── server.ts           # Fastify app setup, plugins, route registration
+│   ├── config/index.ts     # All env vars (single source of truth)
+│   ├── controllers/        # Request handlers
+│   ├── lib/                # prisma, redis, email, expo-push, minio, r2, logger
+│   ├── middleware/auth.ts  # requireAuth / requireAdmin / requireSubscription
+│   ├── models/             # Zod DTOs for all request bodies
+│   ├── routes/             # Route registrations + webhook handlers
+│   └── services/           # Business logic (admin, ask-gad, auth, donations, etc.)
+└── tests/
+    ├── helpers/
+    │   ├── app.ts          # getTestApp() / closeTestApp() — singleton Fastify instance
+    │   ├── db.ts           # resetDb(), seedBase(), resetMutableData(), seedModuleFixtures()
+    │   └── auth.ts         # createAndLogin(), FIXTURES (SUPER_ADMIN, PLAIN_USER, etc.)
+    ├── auth.test.ts
+    ├── rbac-roles.test.ts
+    ├── rbac-support-team.test.ts
+    ├── ask-gad.test.ts
+    ├── ask-gad-credits.test.ts
+    ├── audit-log.test.ts
+    ├── pricing-app-config.test.ts
+    ├── modules.test.ts
+    ├── videos.test.ts
+    ├── progress.test.ts
+    ├── users-profile.test.ts
+    ├── subscriptions.test.ts
+    ├── payments.test.ts
+    ├── donations.test.ts
+    ├── webhooks.test.ts
+    ├── announcements.test.ts
+    └── analytics.test.ts
 ```
 
 ---
@@ -124,17 +147,38 @@ npx tsx prisma/seed.ts
 
 ## Testing
 
+### Backend API tests (Vitest)
+
 Backend API tests run via **Vitest** + Fastify `.inject()` against a dedicated
-`kunga_test` database. See [TESTING.md](./TESTING.md) for setup and how to
-write new tests.
+`kunga_test` database. See [TESTING.md](./TESTING.md) for full setup, helper
+documentation, and how to write new tests.
 
 ```bash
 npm run test            # run all tests
 npm run test:coverage   # run with coverage report
 ```
 
-CI runs the full suite on every push/PR to `dev`, `staging`, and `prod`
+17 test suites, 228+ tests covering auth, RBAC, modules, videos, progress,
+subscriptions, payments, donations, webhooks, announcements, and analytics.
+CI runs on every push/PR to `dev`, `staging`, and `prod`
 (`.github/workflows/test.yml`) against a `postgres:16` service container.
+
+### Admin portal E2E tests (Playwright)
+
+Browser automation tests for `kunga-admin-portal` live in that project under
+`e2e/`. They run against a Vite dev server with all API calls mocked — no real
+backend needed.
+
+```bash
+cd ../kunga-admin-portal
+npx playwright install chromium   # first time only
+npm run test:e2e                  # headless
+npm run test:e2e:headed           # watch the browser
+SLOW_MO=500 npx playwright test --headed  # slow motion
+```
+
+19 tests across 6 spec files (auth, dashboard, support team, roles, audit log,
+announcements). See `kunga-admin-portal/README.md` for full details.
 
 ---
 
