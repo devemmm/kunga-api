@@ -60,10 +60,12 @@ npm run test:coverage   # run with coverage report (coverage/html-report/index.h
   - `seedBase()` — seeds RBAC roles/permissions (`prisma/rbac-seed.ts`),
     pricing/app-config defaults, and the module-group taxonomy. Use once in
     `beforeAll`, right after `resetDb()`.
-  - `resetMutableData()` — truncates only `users`, `audit_logs`, and
-    `activity_logs` (FK cascade cleans up role assignments, submissions,
-    subscriptions, etc.). Use in `beforeEach` so each test starts with a clean
-    set of users but doesn't pay the cost of re-seeding RBAC/config every time.
+  - `resetMutableData()` — truncates `users`, `audit_logs`, `activity_logs`,
+    `visitor_sessions`, `analytics_events`, `announcements`, and
+    `user_announcement_dismissals` (FK cascade cleans up role assignments,
+    submissions, subscriptions, etc.). Use in `beforeEach` so each test starts
+    with a clean set of users but doesn't pay the cost of re-seeding
+    RBAC/config every time.
 - `tests/helpers/auth.ts` — `createUser()`, `loginAs()`, `createAndLogin()`,
   and `FIXTURES` (`SUPER_ADMIN`, `SUPPORT_AGENT`, `SUPPORT_MANAGER`,
   `PLAIN_USER`, `NO_SUBSCRIPTION_USER`, `CONTENT_MANAGER`,
@@ -115,7 +117,7 @@ describe('My feature', () => {
 For protected routes, assert: `401` (no token), `403` (wrong role/permission),
 and `200`/`201` (authorized) — that's the pattern used throughout Phase 1.
 
-## Phase 1, 2a & 2b coverage
+## Phase 1, 2a, 2b & 2c coverage
 
 - `tests/auth.test.ts` — register, login, refresh, `/auth/me`
   (roles + effectivePermissions), logout, forgot/reset password.
@@ -170,6 +172,24 @@ and `200`/`201` (authorized) — that's the pattern used throughout Phase 1.
 New `.env.test` keys for Phase 2b: `FLUTTERWAVE_SECRET_KEY` (placeholder —
 all Flutterwave `fetch()` calls are mocked) and `FLUTTERWAVE_WEBHOOK_HASH`
 (used by `tests/webhooks.test.ts` to build a valid `verif-hash` header).
+
+- `tests/announcements.test.ts` — user-facing list/active-banner/dismiss
+  (incl. dismissal excludes from future listings, draft exclusion),
+  admin CRUD (`VIEW_CONTENT`/`MANAGE_ANNOUNCEMENTS`), stats, viewers, and
+  publish (push + email notifications). Mocks `lib/expo-push.js` and
+  `lib/email.js`'s `sendAnnouncementEmail`. Note: the "invalid payload"
+  case currently returns 500 rather than 400, because `ZodError`s thrown
+  by `Dto.parse()` aren't mapped to 400 by the global error handler.
+- `tests/analytics.test.ts` — marketing analytics (`overview`/`funnel`/
+  `retention`/`mobile-money`, `VIEW_ANALYTICS`-gated, `SUPER_ADMIN` only)
+  and site/visitor analytics: `POST /track` (session creation, pageView
+  increment, bounce-flag clearing, 400 on missing `sessionId`), and the
+  `site/*` aggregation endpoints (`overview`, `geo`, `devices`, `pages`,
+  `sources`, `trends`, `realtime`, `export` CSV, `public-stats`) seeded
+  directly via `prisma.visitorSession`/`prisma.analyticsEvent.create()`.
+  GeoIP lookups on the loopback `.inject()` IP resolve to empty geo data,
+  so no GeoIP mocking is needed — geo/device breakdowns are tested via
+  seeded rows instead.
 
 ## CI
 

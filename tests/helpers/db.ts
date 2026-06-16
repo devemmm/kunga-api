@@ -27,7 +27,7 @@ export async function resetDb(): Promise<void> {
  */
 export async function resetMutableData(): Promise<void> {
   await prisma.$executeRawUnsafe(
-    `TRUNCATE TABLE "users", "audit_logs", "activity_logs" RESTART IDENTITY CASCADE`,
+    `TRUNCATE TABLE "users", "audit_logs", "activity_logs", "visitor_sessions", "analytics_events", "announcements", "user_announcement_dismissals" RESTART IDENTITY CASCADE`,
   );
 }
 
