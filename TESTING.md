@@ -250,10 +250,41 @@ running with `--headed`.
 `prod` using Node 20 + Chromium. Playwright report uploaded as artifact always;
 `test-results/` uploaded on failure.
 
-## Phase 3b+ roadmap (not yet implemented)
+## Phase 3b — Admin portal unit tests (Vitest + RTL) ✓
 
-- **Frontend component tests** — admin portal React components in isolation
-  (Vitest + React Testing Library).
+Component and logic tests for `kunga-admin-portal` using **Vitest** +
+**React Testing Library** in a jsdom environment. No browser, no backend.
+
+```bash
+cd ../kunga-admin-portal
+npm run test             # run once (headless)
+npm run test:watch       # watch mode
+npm run test:coverage    # with HTML coverage report
+```
+
+### Test files (44 tests total)
+
+| File | Tests | Coverage |
+|------|-------|----------|
+| `src/__tests__/components/ui.test.jsx` | 32 | `Badge` (status colours + i18n), `Spinner`, `Empty`, `ProgBar` (CSS classes), `Avatar` (initials, null name, size), `Pagination` (disabled states, callbacks), `Modal` (Escape, backdrop, content propagation), `ConfirmModal` (confirm/cancel/danger), `Toast` (error/ok/null), `StatCard`, `CloseX` |
+| `src/__tests__/lib/i18n.test.jsx` | 12 | `translate()` — English/French/Kinyarwanda, unknown lang fallback, unknown key fallback, `{var}` interpolation; `useLang()` — default lang, `t()` output, `setLang` switching across all three languages |
+
+### Setup
+
+- `vitest.config.js` — jsdom environment, `vmThreads` pool (required for jsdom
+  v24 + ESM packages), coverage via `@vitest/coverage-v8`
+- `src/__tests__/setup.js` — imports `@testing-library/jest-dom` matchers
+- `src/__tests__/helpers/render.jsx` — `renderWithLang(ui, { lang })` wraps
+  any component in `<LangProvider>` with the specified language pre-set via
+  `localStorage`
+
+### CI
+
+`.github/workflows/unit.yml` runs `npm run test:coverage` on every push/PR.
+Coverage HTML report uploaded as artifact (7-day retention).
+
+## Phase 3c+ roadmap (not yet implemented)
+
 - **Mobile app E2E** — Detox/Maestro flows for onboarding, subscription,
   Ask Dr. Gad submission, module playback.
 - **Coverage targets** — 90% API route coverage, 80% overall code coverage,
