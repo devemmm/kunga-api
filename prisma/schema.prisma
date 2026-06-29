@@ -37,6 +37,7 @@ model User {
 
   // Relations
   childProfile              ChildProfile?
+  childAssessments          ChildAssessment[]
   preferences               UserPreferences?
   subscription              Subscription?
   progress                  UserProgress[]
@@ -88,6 +89,34 @@ model ChildProfile {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("child_profiles")
+}
+
+// ─── CHILD ASSESSMENT (Development Assessment & Recommendation flow) ─────────
+
+model ChildAssessment {
+  id                  String   @id @default(cuid())
+  userId              String
+  childName           String
+  dateOfBirth         String?
+  gender              String?
+  country             String?
+  parentName          String?
+  parentEmail         String?
+  parentPhone         String?
+  answers             Json // { [questionId]: score }
+  domainScores        Json // { attention: pct, interaction: pct, communication: pct, movement: pct }
+  recommendedProgram  String?
+  selectedProgram     String?
+  strengths           String[]
+  areasToSupport      String[]
+  videoCount          Int      @default(0)
+  photoCount          Int      @default(0)
+  reportCount         Int      @default(0)
+  createdAt           DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("child_assessments")
 }
 
 // ─── USER PREFERENCES (notification settings) ────────────────────────────────

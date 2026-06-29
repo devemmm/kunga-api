@@ -404,3 +404,95 @@ export async function sendAnnouncementEmail(
   `);
   await send(to, title, html);
 }
+
+// ─── Child Assessment report ───────────────────────────────────────────────────
+
+const DOMAIN_LABELS: Record<string, string> = {
+  communication: 'Communication',
+  attention: 'Attention',
+  socialInteraction: 'Social Interaction',
+  sensoryProcessing: 'Sensory Processing',
+  movement: 'Movement',
+};
+
+function domainScoreColor(pct: number): string {
+  if (pct >= 70) return '#0d9488';
+  if (pct >= 45) return '#d97706';
+  return '#dc2626';
+}
+
+export async function sendAssessmentReportEmail(
+  to: string,
+  parentName: string,
+  childName: string,
+  domainScores: Record<string, number>,
+  recommendedProgram: string | null,
+  strengths: string[],
+  areasToSupport: string[],
+): Promise<void> {
+  const domainRows = Object.entries(domainScores ?? {})
+    .map(([key, pct]) => {
+      const label = DOMAIN_LABELS[key] ?? key.replace(/([A-Z])/g, ' $1');
+      const color = domainScoreColor(pct);
+      return `
+        <tr>
+          <td style="padding:8px 0;font-size:14px;color:#374151;">${label}</td>
+          <td style="padding:8px 0;text-align:right;">
+            <span style="background:${color}1a;color:${color};font-weight:700;font-size:13px;
+                         padding:3px 10px;border-radius:100px;">${pct}%</span>
+          </td>
+        </tr>`;
+    })
+    .join('');
+
+  const strengthsHtml = strengths.length
+    ? `<ul style="padding-left:20px;line-height:1.9;font-size:14px;color:#374151;">
+         ${strengths.map(s => `<li>${s}</li>`).join('')}
+       </ul>`
+    : `<p style="font-size:14px;color:#9ca3af;">No specific strengths flagged.</p>`;
+
+  const areasHtml = areasToSupport.length
+    ? `<ul style="padding-left:20px;line-height:1.9;font-size:14px;color:#374151;">
+         ${areasToSupport.map(a => `<li>${a}</li>`).join('')}
+       </ul>`
+    : `<p style="font-size:14px;color:#9ca3af;">No specific areas flagged.</p>`;
+
+  const html = layout(`${childName}'s Development Assessment Report`, `
+    <p>Hi ${parentName || 'there'},</p>
+    <p>Thank you for completing <strong>${childName}'s</strong> development assessment.
+       Here's a summary of the results:</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border-top:1px solid #f3f4f6;">
+      ${domainRows}
+    </table>
+
+    ${recommendedProgram ? `
+    <p style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:10px;padding:14px 16px;font-size:14px;color:#0f766e;">
+      🎯 <strong>Recommended Program:</strong> ${recommendedProgram}
+    </p>` : ''}
+
+    <p style="font-weight:700;font-size:14px;color:#111827;margin-top:24px;">🌟 Strengths</p>
+    ${strengthsHtml}
+
+    <p style="font-weight:700;font-size:14px;color:#111827;">🎯 Areas to Support</p>
+    ${areasHtml}
+
+    <p style="font-size:13px;color:#6b7280;">
+      This is an informal screening tool and not a clinical diagnosis. For a detailed
+      review and a personalised intervention plan, book a consultation with one of
+      our expert therapists.
+    </p>
+
+    <p style="text-align:center;margin:28px 0;">
+      <a href="https://app.kungabasics.com"
+         style="background:#0d9488;color:#ffffff;padding:14px 32px;border-radius:8px;
+                text-decoration:none;font-weight:600;font-size:15px;display:inline-block;">
+        View Full Report in the App
+      </a>
+    </p>
+
+    <p>Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
+  `);
+
+  await send(to, `${childName}'s Development Assessment Report`, html);
+}

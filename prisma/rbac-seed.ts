@@ -21,6 +21,8 @@ export const PERMISSIONS: { code: string; description: string; category: string 
   { code: 'ASSIGN_QUESTIONS',     description: 'Assign questions to agents',             category: 'Ask Dr. Gad' },
   { code: 'ANSWER_QUESTIONS',     description: 'Respond to submissions',                 category: 'Ask Dr. Gad' },
   { code: 'ESCALATE_QUESTIONS',   description: 'Escalate questions to Dr. Gad',          category: 'Ask Dr. Gad' },
+  // Assessments
+  { code: 'VIEW_ASSESSMENTS',     description: 'View child development assessments',     category: 'Assessments' },
   // Content
   { code: 'VIEW_CONTENT',         description: 'View modules/content',                   category: 'Content' },
   { code: 'MANAGE_CONTENT',       description: 'Create/edit/delete modules',             category: 'Content' },
@@ -53,7 +55,7 @@ export const ROLES: { name: string; description: string; permissions: string[] |
     permissions: [
       'VIEW_DASHBOARD', 'VIEW_USERS', 'VIEW_SUBSCRIPTIONS',
       'VIEW_QUESTIONS', 'ASSIGN_QUESTIONS', 'ANSWER_QUESTIONS', 'ESCALATE_QUESTIONS',
-      'VIEW_SUPPORT_TEAM',
+      'VIEW_SUPPORT_TEAM', 'VIEW_ASSESSMENTS',
     ],
   },
   {

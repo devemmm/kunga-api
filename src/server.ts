@@ -24,6 +24,7 @@ import {
 } from './routes/progress.route.js';
 import { webhooksRoutes } from './routes/webhooks.route.js';
 import { rolesRoutes, permissionsRoutes, supportTeamRoutes } from './routes/rbac.route.js';
+import { assessmentsRoutes } from './routes/assessments.route.js';
 
 export async function buildServer(): Promise<FastifyInstance> {
   // ─── SERVER INSTANCE ───────────────────────────────────────────────────────
@@ -285,6 +286,7 @@ Preview modules (\`isPreview: true\`) are always accessible.
   await server.register(rolesRoutes,         { prefix: `${API}/admin/roles` });
   await server.register(permissionsRoutes,   { prefix: `${API}/admin/permissions` });
   await server.register(supportTeamRoutes,   { prefix: `${API}/admin/support-team` });
+  await server.register(assessmentsRoutes,   { prefix: `${API}/assessments` });
 
   // ─── APP VERSION CHECK (public — no auth required) ────────────────────────
   // Mobile app calls this on startup to check for forced/optional updates.

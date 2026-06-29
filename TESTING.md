@@ -191,6 +191,21 @@ all Flutterwave `fetch()` calls are mocked) and `FLUTTERWAVE_WEBHOOK_HASH`
   so no GeoIP mocking is needed — geo/device breakdowns are tested via
   seeded rows instead.
 
+### Known gap — `tests/assessments.test.ts` (not yet written)
+
+`src/routes/assessments.route.ts` (`/assessments/*` — mobile submit/list/get-by-id,
+admin `all`/`:id` gated by `VIEW_ASSESSMENTS`) currently has **zero test
+coverage**. When picked up, follow the `tests/progress.test.ts` pattern
+(inline-prisma route, no dedicated service file): assert 201 + persisted row
+shape on `POST /assessments`, ownership scoping on `GET /assessments` and
+`GET /assessments/:id` (404 for another user's id), `VIEW_ASSESSMENTS` 403 for
+`PLAIN_USER`/`SUPPORT_AGENT`, and `search` filtering on
+`GET /assessments/admin/all` (childName/parentName/parentEmail/user.email).
+`POST /assessments` also fires `sendAssessmentReportEmail` — mock
+`lib/email.js` the same way `tests/announcements.test.ts` mocks
+`sendAnnouncementEmail` and assert it's called with the right recipient
+(`parentEmail` if present, otherwise the account email).
+
 ## CI
 
 `.github/workflows/test.yml` runs the full suite on push/PR to `dev`,

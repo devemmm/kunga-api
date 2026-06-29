@@ -145,6 +145,7 @@ npx tsx prisma/seed.ts
 - The consolidated baseline was validated by deploying it to a clean `kungav1` database and diffing the resulting schema (tables, columns, types, indexes, foreign keys) against the live `kunga` production database — zero structural differences.
 - Existing environments (e.g. `kunga`) had their migration history resolved to this single baseline via `prisma migrate resolve --applied 20260613100000_init_v1`, with no data loss — only the `_prisma_migrations` bookkeeping table was affected.
 - Going forward, all schema changes should be new migrations created with `npx prisma migrate dev --name <change>` on top of `20260613100000_init_v1`.
+- The `kunga` DB user lacks `CREATEDB`, so `prisma migrate dev` cannot build its shadow database (`P3014`). Workaround used for `20260629062912_add_child_assessment` (and to be reused for future migrations against this environment): generate the SQL with `npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script`, save it under `prisma/migrations/<timestamp>_<name>/migration.sql`, apply it with `npx prisma db execute --file <path> --schema prisma/schema.prisma`, then record it with `npx prisma migrate resolve --applied <timestamp>_<name>`.
 
 ---
 
@@ -274,6 +275,7 @@ EXPO_ACCESS_TOKEN=your-expo-access-token
 ```
 User
   ├─ ChildProfile       childName, dateOfBirth, ageMonths, challenges[]
+  ├─ ChildAssessment[]  childName, answers, domainScores, recommendedProgram, strengths[], areasToSupport[]
   ├─ Subscription       plan, status, platform, periodEnd, questionAddonUsd
   ├─ UserPreferences    notification toggles, theme, language, cookieConsent
   ├─ QuestionCredit     monthKey, credits, status (PENDING|ACTIVE|FAILED)
@@ -317,6 +319,7 @@ These can be changed live from the admin portal Pricing page — no redeploy nee
 | `sendWelcomeEmail` | User registration |
 | `sendAdminEmail` | Admin direct message to user |
 | `sendSubscriptionActivatedEmail` | Payment confirmed |
+| `sendAssessmentReportEmail` | `POST /assessments` — child assessment submitted (fire-and-forget, sent to `parentEmail` or the account email as fallback) |
 
 ---
 
@@ -381,6 +384,7 @@ A user's **effective permissions** = union of all permissions from their assigne
 | Analytics | `VIEW_ANALYTICS` |
 | Users | `VIEW_USERS`, `MANAGE_USERS`, `VIEW_SUBSCRIPTIONS`, `MANAGE_SUBSCRIPTIONS` |
 | Ask Dr. Gad | `VIEW_QUESTIONS`, `ASSIGN_QUESTIONS`, `ANSWER_QUESTIONS`, `ESCALATE_QUESTIONS` |
+| Assessments | `VIEW_ASSESSMENTS` |
 | Content | `VIEW_CONTENT`, `MANAGE_CONTENT`, `MANAGE_VIDEOS`, `MANAGE_ANNOUNCEMENTS` |
 | Revenue | `VIEW_DONATIONS`, `VIEW_MOBILE_MONEY`, `VIEW_CARD_PAYMENTS`, `MANAGE_PRICING` |
 | Administration | `MANAGE_ROLES`, `MANAGE_PERMISSIONS`, `VIEW_SUPPORT_TEAM`, `MANAGE_SUPPORT_TEAM`, `VIEW_AUDIT_LOGS` |
@@ -390,7 +394,7 @@ A user's **effective permissions** = union of all permissions from their assigne
 | Role | Access |
 |------|--------|
 | Super Admin | `*` — every permission, including role/permission/audit management |
-| Support Manager | Dashboard, Users (view), Subscriptions (view), Ask Dr. Gad (full), Support Team (view) |
+| Support Manager | Dashboard, Users (view), Subscriptions (view), Ask Dr. Gad (full), Support Team (view), Assessments (view) |
 | Support Agent | Dashboard, Ask Dr. Gad (answer/escalate) |
 | Content Manager | Content, Videos, Announcements |
 | Finance Officer | Revenue views + Pricing |
@@ -433,6 +437,22 @@ Every RBAC, Support Team, and Ask Dr. Gad assign/escalate action is recorded via
 - `sessionId` — not currently tracked (JWTs are stateless); reserved column, always `null`.
 
 Exposed read-only via `GET /admin/audit-log` (`VIEW_AUDIT_LOGS`), with `search` and `module` filters.
+
+### Child Assessments API (`/assessments`)
+
+Persists the mobile app's 7-step Child Development Assessment & Recommendation flow so it shows up as history for both the submitting parent and the admin team. Submission happens automatically (non-blocking) the moment the assessment results are computed, after the Upload step.
+
+| Method & Path | Permission | Description |
+|----------------|------------|-------------|
+| `GET /assessments` | `requireAuth` | Parent's own assessment history, newest first |
+| `GET /assessments/:id` | `requireAuth` | One of the caller's own assessments |
+| `POST /assessments` | `requireAuth` | Submit a completed assessment (called by the mobile app) — also fires `sendAssessmentReportEmail` (fire-and-forget) to `parentEmail`, falling back to the account email |
+| `GET /assessments/admin/all` | `VIEW_ASSESSMENTS` | List all parents' assessments — paginated, `search` matches child name, parent name/email, or account email |
+| `GET /assessments/admin/:id` | `VIEW_ASSESSMENTS` | One assessment with full submitter details (name, email, phone) |
+
+`ChildAssessment` (see Database Key Models) stores: child info (name, DOB, gender, country), parent contact info, raw `answers` (question → score), computed `domainScores` JSON, `recommendedProgram`/`selectedProgram`, AI-style `strengths[]`/`areasToSupport[]`, and upload counts (`videoCount`/`photoCount`/`reportCount` — file contents themselves are not stored, only counts).
+
+Exposed in the admin portal under **Assessments** (sidebar, `VIEW_ASSESSMENTS`) and in the mobile app under **Profile → My Assessment History**.
 
 ---
 
