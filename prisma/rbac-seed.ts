@@ -34,6 +34,8 @@ export const PERMISSIONS: { code: string; description: string; category: string 
   { code: 'VIEW_CARD_PAYMENTS',   description: 'View card payments',                     category: 'Revenue' },
   { code: 'MANAGE_PRICING',       description: 'Edit subscription pricing config',       category: 'Revenue' },
   // Administration
+  { code: 'VIEW_COUNTRIES',        description: 'View country availability settings',      category: 'Administration' },
+  { code: 'MANAGE_COUNTRIES',     description: 'Manage country availability & scheduling', category: 'Administration' },
   { code: 'MANAGE_ROLES',         description: 'Manage roles & permission assignments',  category: 'Administration' },
   { code: 'MANAGE_PERMISSIONS',   description: 'View/manage permission catalogue',       category: 'Administration' },
   { code: 'VIEW_SUPPORT_TEAM',    description: 'View support team members',              category: 'Administration' },

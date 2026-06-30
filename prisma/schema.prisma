@@ -56,6 +56,8 @@ model User {
   roleAssignments           UserRoleAssignment[]
   permissionOverrides       UserPermission[]
   assignedAskGadSubmissions AskGadSubmission[]          @relation("AskGadAssignee")
+  countryUpdates            CountryAvailability[]       @relation("CountryUpdatedBy")
+  countryAudits             CountryAuditLog[]           @relation("CountryAuditPerformedBy")
 
   @@map("users")
 }
@@ -749,4 +751,68 @@ model AppConfig {
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("app_config")
+}
+
+// ─── COUNTRY AVAILABILITY ─────────────────────────────────────────────────────
+
+enum CountryStatus {
+  AVAILABLE
+  NOT_AVAILABLE
+  MAINTENANCE
+  SCHEDULED
+}
+
+model CountryAvailability {
+  id          String        @id @default(cuid())
+  countryCode String        @unique @db.VarChar(2)
+  countryName String
+  countryFlag String        @default("")
+  status      CountryStatus @default(NOT_AVAILABLE)
+  launchDate  DateTime?
+  notes       String?
+
+  updatedById String?
+  updatedBy   User?   @relation("CountryUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  audits   CountryAuditLog[]
+  attempts CountryAccessAttempt[]
+
+  @@index([status])
+  @@index([launchDate])
+  @@map("country_availability")
+}
+
+model CountryAuditLog {
+  id          String        @id @default(cuid())
+  countryId   String
+  country     CountryAvailability @relation(fields: [countryId], references: [id], onDelete: Cascade)
+
+  prevStatus  CountryStatus?
+  newStatus   CountryStatus?
+  prevLaunch  DateTime?
+  newLaunch   DateTime?
+  action      String
+  performedById String?
+  performedBy   User?   @relation("CountryAuditPerformedBy", fields: [performedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@index([countryId, createdAt])
+  @@index([performedById])
+  @@map("country_audit_logs")
+}
+
+model CountryAccessAttempt {
+  id          String   @id @default(cuid())
+  countryId   String?
+  country     CountryAvailability? @relation(fields: [countryId], references: [id], onDelete: SetNull)
+  countryCode String?
+  countryName String?
+  type        String   // "signin" | "register" | "reset_password" | "api"
+  ip          String?
+  createdAt   DateTime @default(now())
+
+  @@index([countryId, createdAt])
+  @@index([createdAt])
+  @@map("country_access_attempts")
 }

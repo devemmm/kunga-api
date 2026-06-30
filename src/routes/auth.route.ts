@@ -1,8 +1,31 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { AuthController } from '../controllers/auth.controller.js';
 import { requireAuth } from '../middleware/auth.js';
+import { CountryService } from '../services/country.service.js';
+
+// Blocks sign-in / register / password reset from unavailable/maintenance countries
+async function requireCountryAccess(type: string) {
+  return async (req: FastifyRequest, reply: FastifyReply) => {
+    const access = await CountryService.checkAccess(req);
+    if (!access.allowed) {
+      await CountryService.recordAttempt(req, type);
+      return reply.status(403).send({
+        error:       'service_unavailable',
+        status:      access.status,
+        countryCode: access.countryCode,
+        countryName: access.countryName,
+        countryFlag: access.countryFlag,
+        launchDate:  access.launchDate,
+      });
+    }
+  };
+}
 
 export async function authRoutes(server: FastifyInstance) {
+  const countryRegister  = await requireCountryAccess('register');
+  const countrySignin    = await requireCountryAccess('signin');
+  const countryReset     = await requireCountryAccess('reset_password');
+
   server.post('/register', {
     schema: {
       tags: ['Auth'], summary: 'Register with email & password',
@@ -25,6 +48,7 @@ export async function authRoutes(server: FastifyInstance) {
         },
       },
     },
+    preHandler: [countryRegister],
   }, AuthController.register);
 
   server.post('/login', {
@@ -35,6 +59,7 @@ export async function authRoutes(server: FastifyInstance) {
         properties: { email: { type: 'string', format: 'email' }, password: { type: 'string' } },
       },
     },
+    preHandler: [countrySignin],
   }, AuthController.login);
 
   server.post('/google', {
@@ -62,6 +87,7 @@ export async function authRoutes(server: FastifyInstance) {
       tags: ['Auth'], summary: 'Request password reset email',
       body: { type: 'object', required: ['email'], properties: { email: { type: 'string', format: 'email' } } },
     },
+    preHandler: [countryReset],
   }, AuthController.forgotPassword);
 
   server.post('/reset-password', {
@@ -72,6 +98,7 @@ export async function authRoutes(server: FastifyInstance) {
         properties: { token: { type: 'string' }, newPassword: { type: 'string', minLength: 8 } },
       },
     },
+    preHandler: [countryReset],
   }, AuthController.resetPassword);
 
   server.post('/mfa/verify', {

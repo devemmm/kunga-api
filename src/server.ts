@@ -25,6 +25,9 @@ import {
 import { webhooksRoutes } from './routes/webhooks.route.js';
 import { rolesRoutes, permissionsRoutes, supportTeamRoutes } from './routes/rbac.route.js';
 import { assessmentsRoutes } from './routes/assessments.route.js';
+import { countryRoutes } from './routes/country.route.js';
+import { CountryService, seedCountries } from './services/country.service.js';
+import cron from 'node-cron';
 
 export async function buildServer(): Promise<FastifyInstance> {
   // ─── SERVER INSTANCE ───────────────────────────────────────────────────────
@@ -287,6 +290,7 @@ Preview modules (\`isPreview: true\`) are always accessible.
   await server.register(permissionsRoutes,   { prefix: `${API}/admin/permissions` });
   await server.register(supportTeamRoutes,   { prefix: `${API}/admin/support-team` });
   await server.register(assessmentsRoutes,   { prefix: `${API}/assessments` });
+  await server.register(countryRoutes,       { prefix: `${API}/country` });
 
   // ─── APP VERSION CHECK (public — no auth required) ────────────────────────
   // Mobile app calls this on startup to check for forced/optional updates.
@@ -374,6 +378,14 @@ async function main() {
   const server = await buildServer();
 
   await server.listen({ port: config.port, host: config.host });
+
+  // Seed all countries on startup (idempotent — safe to run every deploy)
+  seedCountries().catch((e) => server.log.warn('Country seed failed: ' + e.message));
+
+  // Every minute: activate any scheduled countries whose launch date has passed
+  cron.schedule('* * * * *', () => {
+    CountryService.processScheduled().catch(() => {});
+  });
 
   server.log.info(
     {
