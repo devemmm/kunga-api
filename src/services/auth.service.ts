@@ -261,19 +261,28 @@ export const AuthService = {
 
     const { sub: googleId, email, name = '', picture: avatarUrl } = payload;
 
-    let user = await prisma.user.findFirst({
-      where: { OR: [{ googleId }, { email }] },
-    });
+    // Look up by googleId first (most specific), then fall back to email
+    let user = await prisma.user.findUnique({ where: { googleId } }).catch(() => null)
+      ?? await prisma.user.findUnique({ where: { email } });
 
     if (!user) {
       user = await prisma.user.create({
         data: { email, name, googleId, avatarUrl, preferences: { create: {} } },
       });
     } else if (!user.googleId) {
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: { googleId, avatarUrl: avatarUrl ?? user.avatarUrl, lastLoginAt: new Date() },
-      });
+      // Link googleId only if no other account already owns it
+      const conflict = await prisma.user.findUnique({ where: { googleId } });
+      if (!conflict) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { googleId, avatarUrl: avatarUrl ?? user.avatarUrl, lastLoginAt: new Date() },
+        });
+      } else {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { lastLoginAt: new Date() },
+        });
+      }
     } else {
       user = await prisma.user.update({
         where: { id: user.id },
