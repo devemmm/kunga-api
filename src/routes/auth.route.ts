@@ -23,7 +23,6 @@ async function requireCountryAccess(type: string) {
 
 export async function authRoutes(server: FastifyInstance) {
   const countryRegister  = await requireCountryAccess('register');
-  const countrySignin    = await requireCountryAccess('signin');
   const countryReset     = await requireCountryAccess('reset_password');
 
   server.post('/register', {
@@ -59,7 +58,6 @@ export async function authRoutes(server: FastifyInstance) {
         properties: { email: { type: 'string', format: 'email' }, password: { type: 'string' } },
       },
     },
-    preHandler: [countrySignin],
   }, AuthController.login);
 
   server.post('/google', {
