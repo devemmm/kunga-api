@@ -3,9 +3,11 @@ import { AuthController } from '../controllers/auth.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 import { CountryService } from '../services/country.service.js';
 
-// Blocks sign-in / register / password reset from unavailable/maintenance countries
+// Blocks sign-in / register / password reset from unavailable/maintenance countries.
+// Requests from the admin portal carry X-Platform: admin and are always allowed through.
 async function requireCountryAccess(type: string) {
   return async (req: FastifyRequest, reply: FastifyReply) => {
+    if (req.headers['x-platform'] === 'admin') return;
     const access = await CountryService.checkAccess(req);
     if (!access.allowed) {
       await CountryService.recordAttempt(req, type);
@@ -22,6 +24,7 @@ async function requireCountryAccess(type: string) {
 }
 
 export async function authRoutes(server: FastifyInstance) {
+  const countrySignin    = await requireCountryAccess('signin');
   const countryRegister  = await requireCountryAccess('register');
   const countryReset     = await requireCountryAccess('reset_password');
 
@@ -58,6 +61,7 @@ export async function authRoutes(server: FastifyInstance) {
         properties: { email: { type: 'string', format: 'email' }, password: { type: 'string' } },
       },
     },
+    preHandler: [countrySignin],
   }, AuthController.login);
 
   server.post('/google', {
@@ -68,6 +72,7 @@ export async function authRoutes(server: FastifyInstance) {
         properties: { idToken: { type: 'string' } },
       },
     },
+    preHandler: [countrySignin],
   }, AuthController.googleAuth);
 
   server.post('/refresh', {
