@@ -385,8 +385,17 @@ export const AnalyticsService = {
 // ─── PRICING SERVICE ─────────────────────────────────────────────────────────
 
 const DEFAULT_PRICING: Record<string, { value: string; description: string }> = {
-  price_monthly_usd:   { value: '14.00',  description: 'Monthly subscription price (USD)' },
-  price_annual_usd:    { value: '140.00', description: 'Annual subscription price (USD)' },
+  // ── Gold tier ────────────────────────────────────────────────────────────────
+  price_gold_monthly:   { value: '9.00',  description: 'Gold tier — monthly price (USD)' },
+  price_gold_quarterly: { value: '24.00', description: 'Gold tier — 3-month price (USD)' },
+  price_gold_annual:    { value: '84.00', description: 'Gold tier — annual price (USD)' },
+  // ── Premium tier ─────────────────────────────────────────────────────────────
+  price_premium_monthly:   { value: '15.00',  description: 'Premium tier — monthly price (USD)' },
+  price_premium_quarterly: { value: '39.00',  description: 'Premium tier — 3-month price (USD)' },
+  price_premium_annual:    { value: '141.00', description: 'Premium tier — annual price (USD)' },
+  // ── Legacy keys (kept for backward compat) ───────────────────────────────────
+  price_monthly_usd:   { value: '15.00',  description: 'Legacy: premium monthly price (USD) — use price_premium_monthly' },
+  price_annual_usd:    { value: '141.00', description: 'Legacy: premium annual price (USD) — use price_premium_annual' },
   price_monthly_local: { value: '',       description: 'Monthly price in local currency (optional display label)' },
   price_annual_local:  { value: '',       description: 'Annual price in local currency (optional display label)' },
   currency_local:      { value: 'RWF',    description: 'Local currency code (for display only)' },

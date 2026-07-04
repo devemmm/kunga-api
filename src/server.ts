@@ -347,15 +347,30 @@ Preview modules (\`isPreview: true\`) are always accessible.
     try {
       const rows = await prisma.$queryRaw<Array<{ key: string; value: string }>>`
         SELECT key, value FROM app_config
-        WHERE key IN ('price_monthly_usd','price_annual_usd')
+        WHERE key IN (
+          'price_gold_monthly','price_gold_quarterly','price_gold_annual',
+          'price_premium_monthly','price_premium_quarterly','price_premium_annual',
+          'price_monthly_usd','price_annual_usd'
+        )
       `;
       const m = Object.fromEntries(rows.map((r: any) => [r.key, r.value]));
       return reply.send({
-        monthly: parseFloat(m.price_monthly_usd) || 14,
-        annual:  parseFloat(m.price_annual_usd)  || 140,
+        gold: {
+          monthly:   parseFloat(m.price_gold_monthly)   || 9,
+          quarterly: parseFloat(m.price_gold_quarterly) || 24,
+          annual:    parseFloat(m.price_gold_annual)    || 84,
+        },
+        premium: {
+          monthly:   parseFloat(m.price_premium_monthly)   || parseFloat(m.price_monthly_usd) || 15,
+          quarterly: parseFloat(m.price_premium_quarterly) || 39,
+          annual:    parseFloat(m.price_premium_annual)    || parseFloat(m.price_annual_usd)  || 141,
+        },
       });
     } catch {
-      return reply.send({ monthly: 14, annual: 140 });
+      return reply.send({
+        gold:    { monthly: 9,  quarterly: 24, annual: 84  },
+        premium: { monthly: 15, quarterly: 39, annual: 141 },
+      });
     }
   });
 
