@@ -297,16 +297,37 @@ app_config                (pricing + feature flags — admin editable)
 
 ## Admin-Configurable Pricing (`app_config` table)
 
+### Subscription tiers
+
 | Key | Default | Description |
 |-----|---------|-------------|
-| `price_monthly_usd` | `14.00` | Monthly subscription price |
-| `price_annual_usd` | `140.00` | Annual subscription price |
-| `askgad_monthly_limit` | `2` | Free Ask Dr. Gad questions/month |
+| `price_gold_monthly` | `9.00` | Gold tier — monthly price (USD) |
+| `price_gold_quarterly` | `24.00` | Gold tier — 3-month price (USD) |
+| `price_gold_annual` | `84.00` | Gold tier — annual price (USD) |
+| `price_premium_monthly` | `15.00` | Premium tier — monthly price (USD) |
+| `price_premium_quarterly` | `39.00` | Premium tier — 3-month price (USD) |
+| `price_premium_annual` | `141.00` | Premium tier — annual price (USD) |
+
+Legacy keys (`price_monthly_usd`, `price_annual_usd`) are still present for backward compat but no longer used by the mobile paywall.
+
+**`GET /app/pricing`** returns the structured form consumed by the mobile paywall:
+```json
+{
+  "gold":    { "monthly": 9,  "quarterly": 24, "annual": 84  },
+  "premium": { "monthly": 15, "quarterly": 39, "annual": 141 }
+}
+```
+
+### Other pricing keys
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `askgad_monthly_limit` | `2` | Free Ask Dr. Gad questions/month (Gold tier) |
 | `askgad_credit_price` | `5.00` | Price per Question Credit (USD) |
 | `askgad_credits_per_pack` | `1` | Questions per credit purchase |
 | `trial_days` | `7` | Free trial duration in days |
 
-These can be changed live from the admin portal Pricing page — no redeploy needed.
+All values are editable live from **Admin Portal → Pricing** — no redeploy needed.
 
 ---
 
@@ -327,6 +348,20 @@ These can be changed live from the admin portal Pricing page — no redeploy nee
 
 ### Flutterwave (Subscriptions)
 1. `POST /payments/flutterwave/initiate` → creates hosted payment link
+
+   **Request body:**
+   ```json
+   {
+     "plan":     "premium_annual",   // one of: gold_monthly, gold_quarterly, gold_annual,
+                                     //         premium_monthly, premium_quarterly, premium_annual
+     "tier":     "premium",          // optional — derived from plan if omitted
+     "period":   "annual",           // optional — derived from plan if omitted
+     "currency": "USD"               // optional, defaults to USD
+   }
+   ```
+   Price is resolved from `app_config` using the key `price_{tier}_{period}` (e.g. `price_premium_annual`).
+   The resulting `plan` stored on the `Subscription` row is `"{tier}_{period}"` (e.g. `"gold_quarterly"`).
+
 2. User pays on Flutterwave's page (in-app WebView)
 3. Redirect to `kungabasics://payment?status=successful&tx_ref=KB-...`
 4. `GET /payments/flutterwave/verify?tx_ref=...` → server verifies + activates

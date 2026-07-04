@@ -84,7 +84,9 @@ export type RevenueCatSyncInput = z.infer<typeof RevenueCatSyncDto>;
 // ─── PAYMENT ─────────────────────────────────────────────────────────────────
 
 export const FlutterwaveInitiateDto = z.object({
-  plan: z.enum(['monthly', 'annual']),
+  plan: z.enum(['monthly', 'quarterly', 'annual', 'gold_monthly', 'gold_quarterly', 'gold_annual', 'premium_monthly', 'premium_quarterly', 'premium_annual']),
+  tier: z.enum(['gold', 'premium']).optional(),
+  period: z.enum(['monthly', 'quarterly', 'annual']).optional(),
   currency: z.string().length(3).default('USD'),
   // phone/provider are optional — Flutterwave hosted checkout handles all payment methods
   phone: z.string().min(8).optional(),

@@ -138,8 +138,12 @@ export const PaymentService = {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
     if (!user) throw Object.assign(new Error('User not found'), { status: 404 });
 
-    const prices   = await PricingService.getPrices();
-    const amount   = data.plan === 'annual' ? prices.annual : prices.monthly;
+    // Resolve tier + period from combined plan string (e.g. 'gold_monthly') or separate fields
+    const resolvedTier   = data.tier   ?? (data.plan.startsWith('gold') ? 'gold' : 'premium');
+    const resolvedPeriod = data.period ?? (data.plan.replace(/^(gold|premium)_/, '') as 'monthly' | 'quarterly' | 'annual');
+    const priceKey = `price_${resolvedTier}_${resolvedPeriod}` as const;
+    const priceRaw = await PricingService.get(priceKey as any).catch(() => null);
+    const amount   = parseFloat(priceRaw ?? '') || (resolvedPeriod === 'annual' ? 141 : resolvedPeriod === 'quarterly' ? 39 : 15);
     const currency = data.currency ?? 'USD';
     const txRef    = `KB-${userId}-${Date.now()}`;
 
@@ -157,11 +161,11 @@ export const PaymentService = {
           amount,
           currency,
           redirect_url: config.flutterwave.redirectUrl,
-          meta: { userId, plan: data.plan },
+          meta: { userId, tier: resolvedTier, period: resolvedPeriod, plan: data.plan },
           customer: { email: user.email, name: user.name ?? user.email },
           customizations: {
             title:       'Kunga Basics',
-            description: `${data.plan === 'annual' ? 'Annual' : 'Monthly'} plan – child development program`,
+            description: `${resolvedTier.charAt(0).toUpperCase() + resolvedTier.slice(1)} ${resolvedPeriod} plan – child development program`,
           },
         }),
       });
@@ -179,8 +183,8 @@ export const PaymentService = {
     // Record a pending subscription so we can link the webhook / verify back to the user
     await prisma.subscription.upsert({
       where:  { userId },
-      update: { flutterwaveTxId: txRef, plan: data.plan, platform: 'flutterwave' },
-      create: { userId, plan: data.plan, platform: 'flutterwave', flutterwaveTxId: txRef },
+      update: { flutterwaveTxId: txRef, plan: `${resolvedTier}_${resolvedPeriod}`, platform: 'flutterwave' },
+      create: { userId, plan: `${resolvedTier}_${resolvedPeriod}`, platform: 'flutterwave', flutterwaveTxId: txRef },
     });
 
     return { paymentLink, txRef, amount, currency };
