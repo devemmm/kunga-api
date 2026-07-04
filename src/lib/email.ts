@@ -233,34 +233,206 @@ export async function sendAdminEmail(
   await send(to, subject, html);
 }
 
-// ─── Subscription activated notification ─────────────────────────────────────
+// ─── Shared subscription helpers ─────────────────────────────────────────────
+
+function planMeta(plan: string): { tierLabel: string; periodLabel: string; isGold: boolean; features: string[] } {
+  const isGold  = plan.startsWith('gold');
+  const tierLabel   = isGold ? 'Gold' : 'Premium';
+  const periodPart  = plan.split('_').slice(1).join('_');
+  const periodLabel = periodPart === 'quarterly' ? '3-Month' : periodPart === 'annual' ? 'Annual' : 'Monthly';
+
+  const features = isGold
+    ? ['All video learning modules', 'Daily routine & streak tracking', 'Milestone reports & progress journal', 'Priority customer support']
+    : ['All video learning modules', 'Daily routine & streak tracking', 'Milestone reports & progress journal', 'Unlimited Ask Dr. Gad questions', 'Upload videos & photos to show Dr. Gad', 'Offline mode & cross-device sync', 'Priority customer support'];
+
+  return { tierLabel, periodLabel, isGold, features };
+}
+
+const CTA_STYLE = `background:#16a34a;color:#ffffff;padding:14px 36px;border-radius:8px;
+                   text-decoration:none;font-weight:700;font-size:15px;display:inline-block;
+                   letter-spacing:0.2px;`;
+
+const BADGE_GOLD    = `background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:20px;
+                        font-size:12px;font-weight:700;letter-spacing:0.5px;display:inline-block;`;
+const BADGE_PREMIUM = `background:#dcfce7;color:#14532d;padding:3px 10px;border-radius:20px;
+                        font-size:12px;font-weight:700;letter-spacing:0.5px;display:inline-block;`;
+
+// ─── Subscription activated ───────────────────────────────────────────────────
 
 export async function sendSubscriptionActivatedEmail(
   to: string,
   name: string,
   plan: string,
+  periodEnd?: Date,
 ): Promise<void> {
-  const planLabel = plan === 'annual' ? 'Annual Plan' : 'Monthly Plan';
-  const html = layout('Your Kunga Basics subscription is active! 🎉', `
-    <p>Hi ${name || 'there'},</p>
-    <p>Great news — your <strong>${planLabel}</strong> subscription is now active! 🎉</p>
-    <p>You now have full access to:</p>
-    <ul style="padding-left:20px;line-height:2;">
-      <li>🎬 All video modules</li>
-      <li>📅 Daily routine & streak tracking</li>
-      <li>📊 Milestone reports & journal</li>
-      <li>🎤 Ask Dr. Gad (2 questions/month)</li>
-    </ul>
+  const { tierLabel, periodLabel, isGold, features } = planMeta(plan);
+  const badge = isGold ? BADGE_GOLD : BADGE_PREMIUM;
+  const renewalLine = periodEnd
+    ? `<p style="margin:0 0 20px;color:#6b7280;font-size:13px;">
+         Your subscription renews on <strong style="color:#374151;">
+         ${periodEnd.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</strong>.
+       </p>`
+    : '';
+
+  const featureRows = features
+    .map(f => `<tr>
+      <td style="padding:9px 0;border-bottom:1px solid #f3f4f6;vertical-align:middle;">
+        <span style="display:inline-block;width:22px;height:22px;background:#dcfce7;border-radius:50%;
+                     text-align:center;line-height:22px;font-size:12px;margin-right:10px;">✓</span>
+        <span style="color:#374151;font-size:14px;">${f}</span>
+      </td>
+    </tr>`)
+    .join('');
+
+  const html = layout(`Your Kunga Basics ${tierLabel} subscription is active`, `
+    <p style="margin:0 0 4px;">Hi ${name || 'there'},</p>
+    <p style="margin:0 0 24px;color:#6b7280;">Welcome to Kunga Basics ${tierLabel}.</p>
+
+    <div style="background:#f0faf4;border:1px solid #bbf7d0;border-radius:10px;padding:20px 24px;margin-bottom:24px;">
+      <div style="margin-bottom:12px;">
+        <span style="${badge}">${tierLabel.toUpperCase()} PLAN</span>
+        <span style="font-size:13px;color:#6b7280;margin-left:8px;">${periodLabel}</span>
+      </div>
+      <p style="margin:0 0 4px;font-size:22px;font-weight:700;color:#14532d;">
+        Subscription Active ✓
+      </p>
+      ${renewalLine}
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:4px;">
+        ${featureRows}
+      </table>
+    </div>
+
+    <p style="color:#374151;margin-bottom:24px;">
+      Start exploring everything available to you — track your child's milestones,
+      follow daily learning routines, and watch expert-led video modules designed
+      for their unique developmental journey.
+    </p>
+
     <p style="text-align:center;margin:28px 0;">
-      <a href="https://app.kungabasics.com"
-         style="background:#0d9488;color:#ffffff;padding:14px 32px;border-radius:8px;
-                text-decoration:none;font-weight:600;font-size:15px;display:inline-block;">
-        Start learning
+      <a href="https://app.kungabasics.com" style="${CTA_STYLE}">Open Kunga Basics</a>
+    </p>
+
+    <p style="color:#9ca3af;font-size:13px;margin-top:28px;">
+      Questions about your subscription? Reply to this email or contact us at
+      <a href="mailto:support@kungabasics.com" style="color:#16a34a;">support@kungabasics.com</a>
+    </p>
+    <p style="margin-top:20px;">Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
+  `);
+  await send(to, `Your Kunga Basics ${tierLabel} plan is now active`, html);
+}
+
+// ─── Renewal reminder (3 days before expiry) ─────────────────────────────────
+
+export async function sendSubscriptionRenewalReminderEmail(
+  to: string,
+  name: string,
+  plan: string,
+  periodEnd: Date,
+  amount: number,
+  currency: string,
+): Promise<void> {
+  const { tierLabel, periodLabel, isGold } = planMeta(plan);
+  const badge = isGold ? BADGE_GOLD : BADGE_PREMIUM;
+  const renewalDate = periodEnd.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const amountDisplay = `${currency} ${amount.toFixed(2)}`;
+
+  const html = layout(`Your Kunga Basics ${tierLabel} plan renews in 3 days`, `
+    <p style="margin:0 0 4px;">Hi ${name || 'there'},</p>
+    <p style="margin:0 0 24px;color:#6b7280;">Just a friendly heads-up about your upcoming renewal.</p>
+
+    <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:20px 24px;margin-bottom:24px;">
+      <div style="margin-bottom:10px;">
+        <span style="${badge}">${tierLabel.toUpperCase()} PLAN</span>
+        <span style="font-size:13px;color:#6b7280;margin-left:8px;">${periodLabel}</span>
+      </div>
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="padding:6px 0;font-size:14px;color:#374151;">Renewal date</td>
+          <td style="padding:6px 0;font-size:14px;color:#374151;text-align:right;font-weight:600;">${renewalDate}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;font-size:14px;color:#374151;border-top:1px solid #fef3c7;">Amount</td>
+          <td style="padding:6px 0;font-size:14px;color:#374151;text-align:right;font-weight:600;border-top:1px solid #fef3c7;">${amountDisplay}</td>
+        </tr>
+      </table>
+    </div>
+
+    <p style="color:#374151;margin-bottom:20px;">
+      Your card on file will be charged automatically on <strong>${renewalDate}</strong>.
+      If you'd like to cancel before then, you can do so from <strong>Settings → Subscription</strong> in the app.
+    </p>
+
+    <p style="text-align:center;margin:28px 0;">
+      <a href="https://app.kungabasics.com" style="${CTA_STYLE}">Open the app</a>
+    </p>
+
+    <p style="color:#9ca3af;font-size:13px;margin-top:28px;">
+      Need help? Contact us at
+      <a href="mailto:support@kungabasics.com" style="color:#16a34a;">support@kungabasics.com</a>
+    </p>
+    <p style="margin-top:20px;">Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
+  `);
+  await send(to, `Your Kunga Basics ${tierLabel} plan renews on ${renewalDate}`, html);
+}
+
+// ─── Auto-renewal payment failed ─────────────────────────────────────────────
+
+export async function sendSubscriptionRenewalFailedEmail(
+  to: string,
+  name: string,
+  plan: string,
+  amount: number,
+  currency: string,
+): Promise<void> {
+  const { tierLabel, periodLabel, isGold } = planMeta(plan);
+  const badge = isGold ? BADGE_GOLD : BADGE_PREMIUM;
+  const amountDisplay = `${currency} ${amount.toFixed(2)}`;
+
+  const html = layout(`Action required: Kunga Basics payment failed`, `
+    <p style="margin:0 0 4px;">Hi ${name || 'there'},</p>
+    <p style="margin:0 0 24px;color:#6b7280;">We were unable to process your renewal payment.</p>
+
+    <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;padding:20px 24px;margin-bottom:24px;">
+      <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#9f1239;">Payment Unsuccessful</p>
+      <div style="margin-bottom:10px;">
+        <span style="${badge}">${tierLabel.toUpperCase()} PLAN</span>
+        <span style="font-size:13px;color:#6b7280;margin-left:8px;">${periodLabel}</span>
+      </div>
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="padding:6px 0;font-size:14px;color:#374151;">Amount attempted</td>
+          <td style="padding:6px 0;font-size:14px;color:#374151;text-align:right;font-weight:600;">${amountDisplay}</td>
+        </tr>
+      </table>
+    </div>
+
+    <p style="color:#374151;margin-bottom:12px;">
+      Your subscription has been paused. To continue enjoying Kunga Basics without interruption,
+      please renew your subscription from the app — it only takes a moment.
+    </p>
+
+    <p style="color:#374151;margin-bottom:24px;">Common reasons for payment failure:</p>
+    <ul style="color:#374151;font-size:14px;line-height:1.9;padding-left:20px;margin-bottom:24px;">
+      <li>Insufficient card balance</li>
+      <li>Card expired or details changed</li>
+      <li>Bank declined the transaction</li>
+    </ul>
+
+    <p style="text-align:center;margin:28px 0;">
+      <a href="https://app.kungabasics.com" style="background:#dc2626;color:#ffffff;padding:14px 36px;border-radius:8px;
+         text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">
+        Renew my subscription
       </a>
     </p>
-    <p>Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
+
+    <p style="color:#9ca3af;font-size:13px;margin-top:28px;">
+      If you need help, contact us at
+      <a href="mailto:support@kungabasics.com" style="color:#16a34a;">support@kungabasics.com</a>
+      and we'll sort it out together.
+    </p>
+    <p style="margin-top:20px;">Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
   `);
-  await send(to, 'Your Kunga Basics subscription is active! 🎉', html);
+  await send(to, 'Action required: Your Kunga Basics payment was declined', html);
 }
 
 // ─── Subscription cancelled / restored ────────────────────────────────────────
@@ -268,43 +440,81 @@ export async function sendSubscriptionActivatedEmail(
 export async function sendSubscriptionCancelledEmail(
   to: string,
   name: string,
+  periodEnd?: Date,
 ): Promise<void> {
-  const html = layout('Your Kunga Basics subscription was cancelled', `
-    <p>Hi ${name || 'there'},</p>
-    <p>Your Kunga Basics subscription has been <strong>cancelled</strong>.
-       You'll keep access until the end of your current billing period,
-       after which premium features will no longer be available.</p>
-    <p>Changed your mind? You can resubscribe any time from the app.</p>
-    <p style="text-align:center;margin:28px 0;">
-      <a href="https://app.kungabasics.com"
-         style="background:#0d9488;color:#ffffff;padding:14px 32px;border-radius:8px;
-                text-decoration:none;font-weight:600;font-size:15px;display:inline-block;">
-        Open the app
-      </a>
+  const expiryLine = periodEnd
+    ? `You'll keep full access until <strong>${periodEnd.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</strong>, after which premium features will no longer be available.`
+    : `You'll keep access until the end of your current billing period, after which premium features will no longer be available.`;
+
+  const html = layout('Your Kunga Basics subscription has been cancelled', `
+    <p style="margin:0 0 4px;">Hi ${name || 'there'},</p>
+    <p style="margin:0 0 24px;color:#6b7280;">We've processed your cancellation request.</p>
+
+    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:20px 24px;margin-bottom:24px;">
+      <p style="margin:0 0 8px;font-size:15px;font-weight:600;color:#374151;">Subscription cancelled</p>
+      <p style="margin:0;font-size:14px;color:#6b7280;">${expiryLine}</p>
+    </div>
+
+    <p style="color:#374151;margin-bottom:20px;">
+      We're sorry to see you go. If there's anything we could have done better,
+      we'd love to hear from you — reply to this email and share your thoughts.
     </p>
-    <p>Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
+
+    <p style="color:#374151;margin-bottom:24px;">
+      Changed your mind? You can resubscribe any time from <strong>Settings → Subscription</strong> in the app.
+    </p>
+
+    <p style="text-align:center;margin:28px 0;">
+      <a href="https://app.kungabasics.com" style="${CTA_STYLE}">Open the app</a>
+    </p>
+
+    <p style="color:#9ca3af;font-size:13px;margin-top:28px;">
+      Questions? Contact us at
+      <a href="mailto:support@kungabasics.com" style="color:#16a34a;">support@kungabasics.com</a>
+    </p>
+    <p style="margin-top:20px;">Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
   `);
-  await send(to, 'Your Kunga Basics subscription was cancelled', html);
+  await send(to, 'Your Kunga Basics subscription has been cancelled', html);
 }
 
 export async function sendSubscriptionRestoredEmail(
   to: string,
   name: string,
+  plan?: string,
+  periodEnd?: Date,
 ): Promise<void> {
-  const html = layout('Your Kunga Basics subscription is back! 🎉', `
-    <p>Hi ${name || 'there'},</p>
-    <p>Good news — your Kunga Basics subscription has been <strong>restored</strong>
-       and you have full access again. 🎉</p>
-    <p style="text-align:center;margin:28px 0;">
-      <a href="https://app.kungabasics.com"
-         style="background:#0d9488;color:#ffffff;padding:14px 32px;border-radius:8px;
-                text-decoration:none;font-weight:600;font-size:15px;display:inline-block;">
-        Open the app
-      </a>
+  const tierLabel = plan ? planMeta(plan).tierLabel : 'Premium';
+  const renewalLine = periodEnd
+    ? `<p style="margin:0;font-size:13px;color:#6b7280;">
+         Next renewal: <strong style="color:#374151;">
+         ${periodEnd.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</strong>
+       </p>`
+    : '';
+
+  const html = layout(`Your Kunga Basics ${tierLabel} subscription is back`, `
+    <p style="margin:0 0 4px;">Hi ${name || 'there'},</p>
+    <p style="margin:0 0 24px;color:#6b7280;">Great news — your subscription has been restored.</p>
+
+    <div style="background:#f0faf4;border:1px solid #bbf7d0;border-radius:10px;padding:20px 24px;margin-bottom:24px;">
+      <p style="margin:0 0 6px;font-size:22px;font-weight:700;color:#14532d;">Access Restored ✓</p>
+      ${renewalLine}
+    </div>
+
+    <p style="color:#374151;margin-bottom:24px;">
+      All your ${tierLabel} features are active again — your progress, milestones, and history are exactly where you left them.
     </p>
-    <p>Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
+
+    <p style="text-align:center;margin:28px 0;">
+      <a href="https://app.kungabasics.com" style="${CTA_STYLE}">Continue learning</a>
+    </p>
+
+    <p style="color:#9ca3af;font-size:13px;margin-top:28px;">
+      Questions? Contact us at
+      <a href="mailto:support@kungabasics.com" style="color:#16a34a;">support@kungabasics.com</a>
+    </p>
+    <p style="margin-top:20px;">Warm regards,<br/><strong>The Kunga Basics Team</strong></p>
   `);
-  await send(to, 'Your Kunga Basics subscription is back! 🎉', html);
+  await send(to, `Your Kunga Basics ${tierLabel} subscription is back`, html);
 }
 
 // ─── Ask Dr. Gad — response ready ─────────────────────────────────────────────

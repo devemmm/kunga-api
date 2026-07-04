@@ -4,6 +4,7 @@ import { SubStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { config } from '../config/index.js';
 import { sendSubscriptionActivatedEmail, sendDonationReceiptEmail } from '../lib/email.js';
+import { sendExpoPush, buildMessages } from '../lib/expo-push.js';
 
 export async function webhooksRoutes(server: FastifyInstance) {
   /**
@@ -27,21 +28,61 @@ export async function webhooksRoutes(server: FastifyInstance) {
     if (event === 'charge.completed' && data?.status === 'successful') {
       const { tx_ref, customer, amount, currency, id: flwTxId } = data;
 
-      if (tx_ref.startsWith('KB-')) {
-        // Subscription payment
-        const userId = tx_ref.split('-')[1];
-        const plan = amount >= 140 ? 'annual' : 'monthly';
-        const periodEnd = new Date();
-        periodEnd.setDate(periodEnd.getDate() + (plan === 'annual' ? 365 : 30));
+      if (tx_ref.startsWith('KB-') || tx_ref.startsWith('RNW-')) {
+        // Subscription payment (initial KB- or auto-renewal RNW-)
+        const userId = tx_ref.startsWith('RNW-') ? tx_ref.split('-')[1] : tx_ref.split('-')[1];
+
+        // Resolve plan from existing subscription row, or fall back to meta from Flutterwave
+        const existing = await prisma.subscription.findUnique({ where: { userId } });
+        const plan = data.meta?.plan ?? existing?.plan ?? 'premium_monthly';
+
+        // Determine period length from plan string
+        const periodDays = plan.includes('annual') ? 365 : plan.includes('quarterly') ? 92 : 30;
+        const periodEnd  = new Date();
+        periodEnd.setDate(periodEnd.getDate() + periodDays);
+
+        // Capture card token if Flutterwave included one (requires tokenization enabled on account)
+        const cardToken = data.card?.token       ?? null;
+        const cardLast4 = data.card?.last_4digits ?? null;
+        const cardBrand = data.card?.type         ?? null;
 
         await prisma.subscription.upsert({
-          where: { userId },
-          update: { status: SubStatus.ACTIVE, flutterwaveTxId: String(flwTxId), platform: 'flutterwave', periodEnd },
-          create: { userId, plan, status: SubStatus.ACTIVE, flutterwaveTxId: String(flwTxId), platform: 'flutterwave', periodEnd },
+          where:  { userId },
+          update: {
+            status: SubStatus.ACTIVE, flutterwaveTxId: String(flwTxId),
+            platform: 'flutterwave', periodEnd, plan,
+            autoRenewFailedAt: null, autoRenewAttemptedAt: null,
+            ...(cardToken && { cardToken, cardLast4, cardBrand }),
+          },
+          create: {
+            userId, plan, status: SubStatus.ACTIVE,
+            flutterwaveTxId: String(flwTxId), platform: 'flutterwave', periodEnd,
+            ...(cardToken && { cardToken, cardLast4, cardBrand }),
+          },
         });
-        const user = await prisma.user.update({ where: { id: userId }, data: { subscriptionStatus: SubStatus.ACTIVE } });
-        // Send subscription confirmation email (best-effort)
-        sendSubscriptionActivatedEmail(user.email, user.name ?? '', plan).catch(() => {});
+
+        const user = await prisma.user.update({
+          where: { id: userId },
+          data:  { subscriptionStatus: SubStatus.ACTIVE },
+          select: { email: true, name: true, pushToken: true },
+        });
+
+        // Email — professional tier-aware confirmation
+        sendSubscriptionActivatedEmail(user.email, user.name ?? '', plan, periodEnd).catch(() => {});
+
+        // Push notification
+        if (user.pushToken) {
+          const isRenewal = tx_ref.startsWith('RNW-');
+          sendExpoPush(buildMessages([user.pushToken], {
+            title:    isRenewal ? '✅ Subscription renewed!' : '🎉 Welcome to Kunga Basics!',
+            body:     isRenewal
+              ? `Your plan has been renewed and is active until ${periodEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.`
+              : `Your subscription is now active. Start exploring your child's learning journey!`,
+            sound:    'default',
+            priority: 'high',
+            data:     { screen: 'Home' },
+          })).catch(() => {});
+        }
 
       } else if (tx_ref.startsWith('DON-')) {
         // Donation payment
@@ -65,7 +106,6 @@ export async function webhooksRoutes(server: FastifyInstance) {
         if (credit) {
           const user = await prisma.user.findUnique({ where: { id: credit.userId }, select: { pushToken: true } });
           if (user?.pushToken) {
-            const { sendExpoPush, buildMessages } = await import('../lib/expo-push.js');
             await sendExpoPush(buildMessages([user.pushToken], {
               title:    '🎤 Question Credit activated!',
               body:     `You can now ask Dr. Gad ${credit.credits} extra question${credit.credits > 1 ? 's' : ''} this month.`,

@@ -154,11 +154,16 @@ model Subscription {
   revenuecatSubscriberId String?
   flutterwaveTxId        String?
   stripePriceId          String?
-  plan                   String // "monthly" | "annual" | "trial"
+  plan                   String // "gold_monthly"|"gold_quarterly"|"gold_annual"|"premium_monthly"|"premium_quarterly"|"premium_annual"
   status                 SubStatus @default(NONE)
   platform               String // "apple_iap"|"google_play"|"stripe"|"flutterwave"|"scholarship"
   mobileMoneyProvider    String? // "mpesa"|"mtn_momo"|"airtel_money"|"vodacom_mpesa"
   mobileMoneyPhone       String?
+  cardToken              String?  // Flutterwave tokenized card — used for auto-renewal
+  cardLast4              String?  // Last 4 digits for display
+  cardBrand              String?  // e.g. "VISA", "MASTERCARD"
+  autoRenewAttemptedAt   DateTime? // Timestamp of last auto-renewal attempt
+  autoRenewFailedAt      DateTime? // Set when auto-renewal charge fails
   periodStart            DateTime?
   periodEnd              DateTime?
   cancelledAt            DateTime?

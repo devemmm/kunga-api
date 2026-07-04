@@ -27,6 +27,7 @@ import { rolesRoutes, permissionsRoutes, supportTeamRoutes } from './routes/rbac
 import { assessmentsRoutes } from './routes/assessments.route.js';
 import { countryRoutes } from './routes/country.route.js';
 import { CountryService, seedCountries } from './services/country.service.js';
+import { SubscriptionRenewalService } from './services/renewal.service.js';
 import cron from 'node-cron';
 
 export async function buildServer(): Promise<FastifyInstance> {
@@ -400,6 +401,27 @@ async function main() {
   // Every minute: activate any scheduled countries whose launch date has passed
   cron.schedule('* * * * *', () => {
     CountryService.processScheduled().catch(() => {});
+  });
+
+  // Every day at 09:00 UTC: send renewal reminder emails/pushes (3 days before expiry)
+  cron.schedule('0 9 * * *', () => {
+    SubscriptionRenewalService.sendRenewalReminders().catch((e) =>
+      server.log.warn('Renewal reminder job failed: ' + e.message),
+    );
+  });
+
+  // Every day at 10:00 UTC: attempt auto-renewal for expired subscriptions with a stored card token
+  cron.schedule('0 10 * * *', () => {
+    SubscriptionRenewalService.processAutoRenewals().catch((e) =>
+      server.log.warn('Auto-renewal job failed: ' + e.message),
+    );
+  });
+
+  // Every day at 11:00 UTC: mark subscriptions past their periodEnd as EXPIRED
+  cron.schedule('0 11 * * *', () => {
+    SubscriptionRenewalService.expireStaleSubscriptions().catch((e) =>
+      server.log.warn('Expiry job failed: ' + e.message),
+    );
   });
 
   server.log.info(

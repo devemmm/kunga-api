@@ -86,21 +86,22 @@ export const SubscriptionService = {
   },
 
   async cancel(userId: string, adminId: string) {
-    await prisma.subscription.update({ where: { userId }, data: { status: 'CANCELLED', cancelledAt: new Date() } });
+    const sub  = await prisma.subscription.update({ where: { userId }, data: { status: 'CANCELLED', cancelledAt: new Date() } });
     const user = await prisma.user.update({ where: { id: userId }, data: { subscriptionStatus: 'CANCELLED' } });
     await prisma.activityLog.create({ data: { userId, adminId, action: 'admin.subscription.cancel' } });
-    sendSubscriptionCancelledEmail(user.email, user.name ?? '').catch(() => {});
+    sendSubscriptionCancelledEmail(user.email, user.name ?? '', sub.periodEnd ?? undefined).catch(() => {});
     return { message: 'Subscription cancelled' };
   },
 
   async restore(userId: string, adminId: string) {
-    await prisma.subscription.update({
+    const newPeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const sub  = await prisma.subscription.update({
       where: { userId },
-      data: { status: 'ACTIVE', cancelledAt: null, periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
+      data:  { status: 'ACTIVE', cancelledAt: null, periodEnd: newPeriodEnd },
     });
     const user = await prisma.user.update({ where: { id: userId }, data: { subscriptionStatus: 'ACTIVE' } });
     await prisma.activityLog.create({ data: { userId, adminId, action: 'admin.subscription.restore' } });
-    sendSubscriptionRestoredEmail(user.email, user.name ?? '').catch(() => {});
+    sendSubscriptionRestoredEmail(user.email, user.name ?? '', sub.plan, newPeriodEnd).catch(() => {});
     return { message: 'Subscription restored' };
   },
 
