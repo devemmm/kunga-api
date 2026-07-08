@@ -404,6 +404,14 @@ export const AuthService = {
     await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
     return { message: 'Password changed successfully' };
   },
+
+  async verifyPassword(userId: string, password: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.passwordHash) throw Object.assign(new Error('No password set'), { status: 400 });
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) throw Object.assign(new Error('Incorrect password'), { status: 401 });
+    return { ok: true };
+  },
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

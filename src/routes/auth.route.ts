@@ -192,6 +192,15 @@ export async function authRoutes(server: FastifyInstance) {
     preHandler: [requireAuth],
   }, AuthController.changePassword);
 
+  server.post('/verify-password', {
+    schema: {
+      tags: ['Auth'], summary: 'Verify current user password (used before destructive actions)',
+      security: [{ bearerAuth: [] }],
+      body: { type: 'object', required: ['password'], properties: { password: { type: 'string' } } },
+    },
+    preHandler: [requireAuth],
+  }, AuthController.verifyPassword);
+
   server.post('/avatar', {
     schema: { tags: ['Auth'], summary: 'Upload avatar image (multipart/form-data)', security: [{ bearerAuth: [] }] },
     preHandler: [requireAuth],

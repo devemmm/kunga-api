@@ -189,4 +189,10 @@ export const AuthController = {
     const { currentPassword, newPassword } = req.body as { currentPassword: string; newPassword: string };
     return reply.send(await AuthService.changePassword(user.id, currentPassword, newPassword));
   },
+
+  async verifyPassword(req: FastifyRequest, reply: FastifyReply) {
+    const user = (req as any).currentUser;
+    const { password } = req.body as { password: string };
+    return reply.send(await AuthService.verifyPassword(user.id, password));
+  },
 };
