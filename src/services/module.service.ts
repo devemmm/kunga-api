@@ -1,8 +1,29 @@
 import { prisma } from '../lib/prisma.js';
 import { presignedPut, publicUrl } from '../lib/r2.js';
+import { deleteFromMinio } from '../lib/minio.js';
+import { config } from '../config/index.js';
 import { randomUUID } from 'crypto';
 import path from 'path';
 import { getLang, localizeModule } from '../lib/i18n.js';
+
+function minioKeyFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const base = config.minio.publicUrl.replace(/\/$/, '');
+  const bucket = config.minio.bucket;
+  const prefix = `${base}/${bucket}/`;
+  return url.startsWith(prefix) ? url.slice(prefix.length) : null;
+}
+
+async function purgeVideoFromMinio(video: { hlsUrl?: string | null; thumbnailUrl?: string | null; cloudflareStreamId?: string | null }) {
+  if (video.hlsUrl && !video.cloudflareStreamId) {
+    const key = minioKeyFromUrl(video.hlsUrl);
+    if (key) await deleteFromMinio(key);
+  }
+  if (video.thumbnailUrl) {
+    const key = minioKeyFromUrl(video.thumbnailUrl);
+    if (key) await deleteFromMinio(key);
+  }
+}
 import type {
   CreateModuleInput,
   UpdateModuleInput,
@@ -255,6 +276,64 @@ export const ModuleService = {
   async deleteResource(id: string) {
     await (prisma as any).moduleResource.delete({ where: { id } });
     return { message: 'Resource deleted' };
+  },
+
+  // ─── Permanent Delete ────────────────────────────────────────────────────────
+
+  async permanentDeleteVideo(id: string) {
+    const video = await prisma.video.findUnique({ where: { id } });
+    if (!video) throw Object.assign(new Error('Video not found'), { status: 404 });
+    await purgeVideoFromMinio(video);
+    await prisma.$transaction([
+      prisma.videoBookmark.deleteMany({ where: { videoId: id } }),
+      prisma.videoNote.deleteMany({ where: { videoId: id } }),
+      prisma.video.delete({ where: { id } }),
+    ]);
+    return { message: 'Video permanently deleted' };
+  },
+
+  async permanentDeleteModule(id: string) {
+    const mod = await prisma.module.findUnique({
+      where: { id },
+      include: { videos: { select: { id: true, hlsUrl: true, thumbnailUrl: true, cloudflareStreamId: true } } },
+    });
+    if (!mod) throw Object.assign(new Error('Module not found'), { status: 404 });
+    for (const v of mod.videos) await purgeVideoFromMinio(v);
+    const videoIds = mod.videos.map(v => v.id);
+    await prisma.$transaction([
+      prisma.videoBookmark.deleteMany({ where: { videoId: { in: videoIds } } }),
+      prisma.videoNote.deleteMany({ where: { videoId: { in: videoIds } } }),
+      prisma.video.deleteMany({ where: { moduleId: id } }),
+      prisma.userProgress.deleteMany({ where: { moduleId: id } }),
+      prisma.moduleFeedback.deleteMany({ where: { moduleId: id } }),
+      prisma.module.delete({ where: { id } }),   // ModuleResource cascades
+    ]);
+    return { message: 'Module and all its videos permanently deleted' };
+  },
+
+  async permanentDeleteGroup(id: string) {
+    const group = await prisma.moduleGroup.findUnique({
+      where: { id },
+      include: {
+        modules: {
+          include: { videos: { select: { id: true, hlsUrl: true, thumbnailUrl: true, cloudflareStreamId: true } } },
+        },
+      },
+    });
+    if (!group) throw Object.assign(new Error('Module group not found'), { status: 404 });
+    for (const mod of group.modules) for (const v of mod.videos) await purgeVideoFromMinio(v);
+    const moduleIds = group.modules.map(m => m.id);
+    const videoIds  = group.modules.flatMap(m => m.videos.map(v => v.id));
+    await prisma.$transaction([
+      prisma.videoBookmark.deleteMany({ where: { videoId: { in: videoIds } } }),
+      prisma.videoNote.deleteMany({ where: { videoId: { in: videoIds } } }),
+      prisma.video.deleteMany({ where: { moduleId: { in: moduleIds } } }),
+      prisma.userProgress.deleteMany({ where: { moduleId: { in: moduleIds } } }),
+      prisma.moduleFeedback.deleteMany({ where: { moduleId: { in: moduleIds } } }),
+      prisma.module.deleteMany({ where: { groupId: id } }),   // ModuleResource cascades
+      prisma.moduleGroup.delete({ where: { id } }),
+    ]);
+    return { message: 'Module group and all its contents permanently deleted' };
   },
 
   async reorderGroups(items: { id: string; sortOrder: number }[]) {

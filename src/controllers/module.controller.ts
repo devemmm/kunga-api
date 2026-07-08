@@ -128,6 +128,21 @@ export const ModuleController = {
     return reply.send(await ModuleService.getResourceUploadUrl(filename, contentType));
   },
 
+  async permanentDeleteVideo(req: FastifyRequest, reply: FastifyReply) {
+    const { id } = req.params as { id: string };
+    return reply.send(await ModuleService.permanentDeleteVideo(id));
+  },
+
+  async permanentDeleteModule(req: FastifyRequest, reply: FastifyReply) {
+    const { id } = req.params as { id: string };
+    return reply.send(await ModuleService.permanentDeleteModule(id));
+  },
+
+  async permanentDeleteGroup(req: FastifyRequest, reply: FastifyReply) {
+    const { id } = req.params as { id: string };
+    return reply.send(await ModuleService.permanentDeleteGroup(id));
+  },
+
   async reorderGroups(req: FastifyRequest, reply: FastifyReply) {
     const { items } = req.body as { items: { id: string; sortOrder: number }[] };
     return reply.send(await ModuleService.reorderGroups(items));
