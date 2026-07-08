@@ -409,7 +409,7 @@ export const AuthService = {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user?.passwordHash) throw Object.assign(new Error('No password set'), { status: 400 });
     const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) throw Object.assign(new Error('Incorrect password'), { status: 401 });
+    if (!valid) throw Object.assign(new Error('Incorrect password'), { status: 422 });
     return { ok: true };
   },
 };
