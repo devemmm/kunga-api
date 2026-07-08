@@ -92,7 +92,7 @@ export async function deleteFromMinio(objectName: string): Promise<void> {
  */
 export async function presignedPutMinio(
   objectName: string,
-  expiresIn = 3600,
+  expiresIn = 14400,
 ): Promise<{ uploadUrl: string; fileUrl: string }> {
   const client = getMinioClient();
   const bucket  = config.minio.bucket;

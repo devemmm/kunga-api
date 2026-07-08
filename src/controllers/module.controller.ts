@@ -128,6 +128,26 @@ export const ModuleController = {
     return reply.send(await ModuleService.getResourceUploadUrl(filename, contentType));
   },
 
+  async reorderGroups(req: FastifyRequest, reply: FastifyReply) {
+    const { items } = req.body as { items: { id: string; sortOrder: number }[] };
+    return reply.send(await ModuleService.reorderGroups(items));
+  },
+
+  async reorderModules(req: FastifyRequest, reply: FastifyReply) {
+    const { items } = req.body as { items: { id: string; sortOrder: number }[] };
+    return reply.send(await ModuleService.reorderModules(items));
+  },
+
+  async reorderVideos(req: FastifyRequest, reply: FastifyReply) {
+    const { items } = req.body as { items: { id: string; sortOrder: number }[] };
+    return reply.send(await ModuleService.reorderVideos(items));
+  },
+
+  async reorderResources(req: FastifyRequest, reply: FastifyReply) {
+    const { items } = req.body as { items: { id: string; sortOrder: number }[] };
+    return reply.send(await ModuleService.reorderResources(items));
+  },
+
   /** Upload a resource file to MinIO object storage. */
   async uploadResourceToServer(req: FastifyRequest, reply: FastifyReply) {
     const data = await (req as any).file();

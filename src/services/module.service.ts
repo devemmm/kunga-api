@@ -257,6 +257,42 @@ export const ModuleService = {
     return { message: 'Resource deleted' };
   },
 
+  async reorderGroups(items: { id: string; sortOrder: number }[]) {
+    await prisma.$transaction(
+      items.map(({ id, sortOrder }) =>
+        (prisma as any).moduleGroup.update({ where: { id }, data: { sortOrder } })
+      )
+    );
+    return { ok: true };
+  },
+
+  async reorderModules(items: { id: string; sortOrder: number }[]) {
+    await prisma.$transaction(
+      items.map(({ id, sortOrder }) =>
+        (prisma as any).module.update({ where: { id }, data: { sortOrder } })
+      )
+    );
+    return { ok: true };
+  },
+
+  async reorderVideos(items: { id: string; sortOrder: number }[]) {
+    await prisma.$transaction(
+      items.map(({ id, sortOrder }) =>
+        (prisma as any).video.update({ where: { id }, data: { sortOrder } })
+      )
+    );
+    return { ok: true };
+  },
+
+  async reorderResources(items: { id: string; sortOrder: number }[]) {
+    await prisma.$transaction(
+      items.map(({ id, sortOrder }) =>
+        (prisma as any).moduleResource.update({ where: { id }, data: { sortOrder } })
+      )
+    );
+    return { ok: true };
+  },
+
   /**
    * Generate a presigned R2 PUT URL for a direct browser-to-R2 upload.
    * Returns the upload URL and the public CDN URL the file will be available at.
