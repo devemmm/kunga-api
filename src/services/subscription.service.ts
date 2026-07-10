@@ -216,10 +216,12 @@ export const PaymentService = {
     // Idempotent — skip update if webhook already activated it
     if (subscription.status === 'ACTIVE') return { verified: true, activated: true, alreadyActive: true };
 
-    const prices    = await PricingService.getPrices();
-    const plan      = amount >= (prices.monthly + prices.annual) / 2 ? 'annual' : 'monthly';
+    const plan      = subscription.plan; // Trust the plan stored at initiation (includes tier, e.g. 'gold_annual')
+    const isAnnual  = plan.includes('annual');
+    const isQtrly   = plan.includes('quarterly');
+    const days      = isAnnual ? 365 : isQtrly ? 90 : 30;
     const periodEnd = new Date();
-    periodEnd.setDate(periodEnd.getDate() + (plan === 'annual' ? 365 : 30));
+    periodEnd.setDate(periodEnd.getDate() + days);
 
     await prisma.subscription.update({
       where: { id: subscription.id },
@@ -234,7 +236,14 @@ export const PaymentService = {
   },
 
   async handleFlutterwaveCallback(txRef: string, status: string) {
-    const deepLink = `${config.flutterwave.redirectUrl}?status=${status}&tx_ref=${txRef}`;
+    // Activate the subscription immediately at callback time so it doesn't depend
+    // on the mobile app successfully intercepting the deep link redirect.
+    if (status === 'successful' && txRef) {
+      try { await PaymentService.verifyFlutterwave(txRef); } catch {}
+    }
+    // Redirect to the app's deep link scheme — NOT back to config.flutterwave.redirectUrl,
+    // which is the API callback URL itself (would cause an infinite redirect loop).
+    const deepLink = `${config.app.deepLinkScheme}://payment?status=${status}&tx_ref=${encodeURIComponent(txRef)}`;
     return { deepLink };
   },
 
