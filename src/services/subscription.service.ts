@@ -37,7 +37,7 @@ export const SubscriptionService = {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: { user: { select: { id: true, name: true, email: true } } },
+        include: { user: { select: { id: true, name: true, email: true, avatarUrl: true, childProfile: { select: { childName: true, ageMonths: true } } } } },
       }),
       prisma.subscription.count({ where }),
     ]);
