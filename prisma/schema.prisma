@@ -49,6 +49,7 @@ model User {
   askGadSubmissions         AskGadSubmission[]
   journalEntries            JournalEntry[]
   announcementDismissals    UserAnnouncementDismissal[]
+  paymentTransactions       PaymentTransaction[]
   donations                 Donation[]
   scholarshipGrants         ScholarshipGrant[]
   questionCredits           QuestionCredit[]
@@ -178,6 +179,36 @@ model Subscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("subscriptions")
+}
+
+// ─── PAYMENT TRANSACTIONS ─────────────────────────────────────────────────────
+// Append-only log of every payment attempt across all gateways.
+// One row per attempt — multiple rows per user if they retry or upgrade.
+
+model PaymentTransaction {
+  id              String   @id @default(cuid())
+  userId          String
+  platform        String   // "flutterwave" | "stripe" | "apple_iap" | "google_play" | "manual"
+  txRef           String?  // our internal tx_ref sent to gateway
+  gatewayTxId     String?  // numeric/string ID returned by gateway after verification
+  plan            String?  // e.g. "premium_annual"
+  amountUsd       Float?
+  currency        String?  // e.g. "USD", "RWF", "KES"
+  status          String   @default("PENDING") // PENDING | SUCCESS | FAILED | CANCELLED
+  failureReason   String?  // human-readable reason from gateway or internal error
+  gatewayResponse Json?    // raw gateway response stored for debugging
+  initiatedAt     DateTime @default(now())
+  resolvedAt      DateTime? // set when status moves to SUCCESS or FAILED
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([platform])
+  @@index([txRef])
+  @@index([initiatedAt])
+  @@map("payment_transactions")
 }
 
 // ─── QUESTION CREDITS ─────────────────────────────────────────────────────────

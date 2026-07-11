@@ -181,11 +181,18 @@ export const PaymentService = {
       throw Object.assign(new Error('Failed to connect to payment provider'), { status: 502 });
     }
 
+    const plan = `${resolvedTier}_${resolvedPeriod}`;
+
     // Record a pending subscription so we can link the webhook / verify back to the user
     await prisma.subscription.upsert({
       where:  { userId },
-      update: { flutterwaveTxId: txRef, plan: `${resolvedTier}_${resolvedPeriod}`, platform: 'flutterwave', amountUsd: amount, currency },
-      create: { userId, plan: `${resolvedTier}_${resolvedPeriod}`, platform: 'flutterwave', flutterwaveTxId: txRef, amountUsd: amount, currency },
+      update: { flutterwaveTxId: txRef, plan, platform: 'flutterwave', amountUsd: amount, currency },
+      create: { userId, plan, platform: 'flutterwave', flutterwaveTxId: txRef, amountUsd: amount, currency },
+    });
+
+    // Append-only transaction log
+    await prisma.paymentTransaction.create({
+      data: { userId, platform: 'flutterwave', txRef, plan, amountUsd: amount, currency, status: 'PENDING' },
     });
 
     return { paymentLink, txRef, amount, currency };
@@ -205,10 +212,15 @@ export const PaymentService = {
     }
 
     if (flwData.status !== 'success' || flwData.data?.status !== 'successful') {
-      return { verified: false, paymentStatus: flwData.data?.status ?? 'unknown' };
+      const failureReason = flwData.data?.processor_response ?? flwData.message ?? flwData.data?.status ?? 'Payment unsuccessful';
+      await prisma.paymentTransaction.updateMany({
+        where:  { txRef, status: 'PENDING' },
+        data:   { status: 'FAILED', failureReason, gatewayResponse: flwData, resolvedAt: new Date() },
+      });
+      return { verified: false, paymentStatus: flwData.data?.status ?? 'unknown', failureReason };
     }
 
-    const { amount, id: flwTxId } = flwData.data;
+    const { amount, id: flwTxId, processor_response, card } = flwData.data;
 
     const subscription = await prisma.subscription.findFirst({ where: { flutterwaveTxId: txRef } });
     if (!subscription) return { verified: true, activated: false, message: 'No matching subscription found' };
@@ -218,7 +230,7 @@ export const PaymentService = {
       return { verified: true, activated: true, alreadyActive: true };
     }
 
-    const plan      = subscription.plan; // Trust the plan stored at initiation (includes tier, e.g. 'gold_annual')
+    const plan      = subscription.plan;
     const isAnnual  = plan.includes('annual');
     const isQtrly   = plan.includes('quarterly');
     const days      = isAnnual ? 365 : isQtrly ? 90 : 30;
@@ -227,11 +239,24 @@ export const PaymentService = {
 
     await prisma.subscription.update({
       where: { id: subscription.id },
-      data:  { status: 'ACTIVE', plan, periodEnd, flutterwaveTxId: String(flwTxId) },
+      data:  {
+        status: 'ACTIVE', plan, periodEnd, flutterwaveTxId: String(flwTxId),
+        ...(card?.last_4digits && { cardLast4: card.last_4digits }),
+        ...(card?.type         && { cardBrand: card.type }),
+      },
     });
     await prisma.user.update({
       where: { id: subscription.userId },
       data:  { subscriptionStatus: 'ACTIVE' },
+    });
+
+    // Resolve the pending transaction log to SUCCESS
+    await prisma.paymentTransaction.updateMany({
+      where: { txRef, status: 'PENDING' },
+      data:  {
+        status: 'SUCCESS', gatewayTxId: String(flwTxId),
+        gatewayResponse: flwData.data, resolvedAt: new Date(),
+      },
     });
 
     return { verified: true, activated: true, plan, periodEnd };
@@ -276,6 +301,46 @@ export const PaymentService = {
       prisma.subscription.count({ where }),
     ]);
     return { transactions, total, page, limit };
+  },
+
+  async listTransactions(params: {
+    platform?: string; status?: string; plan?: string; search?: string;
+    page?: number; limit?: number; from?: string; to?: string;
+  }) {
+    const { platform, status, plan, search, page = 1, limit = 50, from, to } = params;
+    const skip = (page - 1) * limit;
+    const where: any = {};
+    if (platform) where.platform = platform;
+    if (status)   where.status   = status.toUpperCase();
+    if (plan)     where.plan     = plan;
+    if (from || to) {
+      where.initiatedAt = {};
+      if (from) where.initiatedAt.gte = new Date(from);
+      if (to)   where.initiatedAt.lte = new Date(to);
+    }
+    if (search) {
+      where.user = { OR: [
+        { name:  { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ]};
+    }
+
+    const [transactions, total] = await Promise.all([
+      prisma.paymentTransaction.findMany({
+        where, skip, take: limit,
+        orderBy: { initiatedAt: 'desc' },
+        include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+      }),
+      prisma.paymentTransaction.count({ where }),
+    ]);
+
+    const stats = await prisma.paymentTransaction.groupBy({
+      by: ['status'],
+      _count: { status: true },
+      where: platform ? { platform } : undefined,
+    });
+
+    return { transactions, total, page, limit, stats };
   },
 
   async manualActivate(txId: string, adminId: string) {

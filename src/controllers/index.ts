@@ -158,6 +158,13 @@ export const PaymentController = {
     const { txId } = req.params as { txId: string };
     return reply.send(await PaymentService.manualActivate(txId, admin.id));
   },
+  async listTransactions(req: FastifyRequest, reply: FastifyReply) {
+    const { platform, status, plan, search, page, limit, from, to } = req.query as any;
+    return reply.send(await PaymentService.listTransactions({
+      platform, status, plan, search, from, to,
+      page: Number(page ?? 1), limit: Number(limit ?? 50),
+    }));
+  },
 };
 
 // ─── DONATION CONTROLLER ─────────────────────────────────────────────────────
