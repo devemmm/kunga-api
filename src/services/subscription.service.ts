@@ -184,8 +184,8 @@ export const PaymentService = {
     // Record a pending subscription so we can link the webhook / verify back to the user
     await prisma.subscription.upsert({
       where:  { userId },
-      update: { flutterwaveTxId: txRef, plan: `${resolvedTier}_${resolvedPeriod}`, platform: 'flutterwave' },
-      create: { userId, plan: `${resolvedTier}_${resolvedPeriod}`, platform: 'flutterwave', flutterwaveTxId: txRef },
+      update: { flutterwaveTxId: txRef, plan: `${resolvedTier}_${resolvedPeriod}`, platform: 'flutterwave', amountUsd: amount, currency },
+      create: { userId, plan: `${resolvedTier}_${resolvedPeriod}`, platform: 'flutterwave', flutterwaveTxId: txRef, amountUsd: amount, currency },
     });
 
     return { paymentLink, txRef, amount, currency };

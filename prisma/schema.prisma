@@ -96,25 +96,25 @@ model ChildProfile {
 // ─── CHILD ASSESSMENT (Development Assessment & Recommendation flow) ─────────
 
 model ChildAssessment {
-  id                  String   @id @default(cuid())
-  userId              String
-  childName           String
-  dateOfBirth         String?
-  gender              String?
-  country             String?
-  parentName          String?
-  parentEmail         String?
-  parentPhone         String?
-  answers             Json // { [questionId]: score }
-  domainScores        Json // { attention: pct, interaction: pct, communication: pct, movement: pct }
-  recommendedProgram  String?
-  selectedProgram     String?
-  strengths           String[]
-  areasToSupport      String[]
-  videoCount          Int      @default(0)
-  photoCount          Int      @default(0)
-  reportCount         Int      @default(0)
-  createdAt           DateTime @default(now())
+  id                 String   @id @default(cuid())
+  userId             String
+  childName          String
+  dateOfBirth        String?
+  gender             String?
+  country            String?
+  parentName         String?
+  parentEmail        String?
+  parentPhone        String?
+  answers            Json // { [questionId]: score }
+  domainScores       Json // { attention: pct, interaction: pct, communication: pct, movement: pct }
+  recommendedProgram String?
+  selectedProgram    String?
+  strengths          String[]
+  areasToSupport     String[]
+  videoCount         Int      @default(0)
+  photoCount         Int      @default(0)
+  reportCount        Int      @default(0)
+  createdAt          DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -159,15 +159,17 @@ model Subscription {
   platform               String // "apple_iap"|"google_play"|"stripe"|"flutterwave"|"scholarship"
   mobileMoneyProvider    String? // "mpesa"|"mtn_momo"|"airtel_money"|"vodacom_mpesa"
   mobileMoneyPhone       String?
-  cardToken              String?  // Flutterwave tokenized card — used for auto-renewal
-  cardLast4              String?  // Last 4 digits for display
-  cardBrand              String?  // e.g. "VISA", "MASTERCARD"
+  cardToken              String? // Flutterwave tokenized card — used for auto-renewal
+  cardLast4              String? // Last 4 digits for display
+  cardBrand              String? // e.g. "VISA", "MASTERCARD"
   autoRenewAttemptedAt   DateTime? // Timestamp of last auto-renewal attempt
   autoRenewFailedAt      DateTime? // Set when auto-renewal charge fails
   periodStart            DateTime?
   periodEnd              DateTime?
   cancelledAt            DateTime?
   promoCode              String?
+  amountUsd              Float?    // amount charged at initiation (in USD)
+  currency               String?   // currency used at payment (e.g. "USD", "RWF", "KES")
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
@@ -777,7 +779,7 @@ model CountryAvailability {
   notes       String?
 
   updatedById String?
-  updatedBy   User?   @relation("CountryUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("CountryUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   updatedAt   DateTime @default(now()) @updatedAt
 
   audits   CountryAuditLog[]
@@ -789,18 +791,18 @@ model CountryAvailability {
 }
 
 model CountryAuditLog {
-  id          String        @id @default(cuid())
-  countryId   String
-  country     CountryAvailability @relation(fields: [countryId], references: [id], onDelete: Cascade)
+  id        String              @id @default(cuid())
+  countryId String
+  country   CountryAvailability @relation(fields: [countryId], references: [id], onDelete: Cascade)
 
-  prevStatus  CountryStatus?
-  newStatus   CountryStatus?
-  prevLaunch  DateTime?
-  newLaunch   DateTime?
-  action      String
+  prevStatus    CountryStatus?
+  newStatus     CountryStatus?
+  prevLaunch    DateTime?
+  newLaunch     DateTime?
+  action        String
   performedById String?
-  performedBy   User?   @relation("CountryAuditPerformedBy", fields: [performedById], references: [id], onDelete: SetNull)
-  createdAt   DateTime @default(now())
+  performedBy   User?          @relation("CountryAuditPerformedBy", fields: [performedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
 
   @@index([countryId, createdAt])
   @@index([performedById])
@@ -808,14 +810,14 @@ model CountryAuditLog {
 }
 
 model CountryAccessAttempt {
-  id          String   @id @default(cuid())
+  id          String               @id @default(cuid())
   countryId   String?
   country     CountryAvailability? @relation(fields: [countryId], references: [id], onDelete: SetNull)
   countryCode String?
   countryName String?
-  type        String   // "signin" | "register" | "reset_password" | "api"
+  type        String // "signin" | "register" | "reset_password" | "api"
   ip          String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime             @default(now())
 
   @@index([countryId, createdAt])
   @@index([createdAt])
