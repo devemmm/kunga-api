@@ -213,8 +213,10 @@ export const PaymentService = {
     const subscription = await prisma.subscription.findFirst({ where: { flutterwaveTxId: txRef } });
     if (!subscription) return { verified: true, activated: false, message: 'No matching subscription found' };
 
-    // Idempotent — skip update if webhook already activated it
-    if (subscription.status === 'ACTIVE') return { verified: true, activated: true, alreadyActive: true };
+    // Idempotent — skip only if this exact numeric transaction ID already activated this row
+    if (subscription.status === 'ACTIVE' && subscription.flutterwaveTxId === String(flwTxId)) {
+      return { verified: true, activated: true, alreadyActive: true };
+    }
 
     const plan      = subscription.plan; // Trust the plan stored at initiation (includes tier, e.g. 'gold_annual')
     const isAnnual  = plan.includes('annual');
