@@ -101,10 +101,17 @@ CREATE TABLE "subscriptions" (
     "platform" TEXT NOT NULL,
     "mobileMoneyProvider" TEXT,
     "mobileMoneyPhone" TEXT,
+    "cardToken" TEXT,
+    "cardLast4" TEXT,
+    "cardBrand" TEXT,
+    "autoRenewAttemptedAt" TIMESTAMPTZ,
+    "autoRenewFailedAt" TIMESTAMPTZ,
     "periodStart" TIMESTAMP(3),
     "periodEnd" TIMESTAMP(3),
     "cancelledAt" TIMESTAMP(3),
     "promoCode" TEXT,
+    "amount" DOUBLE PRECISION,
+    "currency" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "questionAddonUsd" DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -708,3 +715,148 @@ ALTER TABLE "visitor_sessions" ADD CONSTRAINT "visitor_sessions_userId_fkey" FOR
 -- AddForeignKey
 ALTER TABLE "analytics_events" ADD CONSTRAINT "analytics_events_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "visitor_sessions"("sessionId") ON DELETE CASCADE ON UPDATE CASCADE;
 
+
+-- CreateTable
+CREATE TABLE "child_assessments" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "childName" TEXT NOT NULL,
+    "dateOfBirth" TEXT,
+    "gender" TEXT,
+    "country" TEXT,
+    "parentName" TEXT,
+    "parentEmail" TEXT,
+    "parentPhone" TEXT,
+    "answers" JSONB NOT NULL,
+    "domainScores" JSONB NOT NULL,
+    "recommendedProgram" TEXT,
+    "selectedProgram" TEXT,
+    "strengths" TEXT[],
+    "areasToSupport" TEXT[],
+    "videoCount" INTEGER NOT NULL DEFAULT 0,
+    "photoCount" INTEGER NOT NULL DEFAULT 0,
+    "reportCount" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "child_assessments_pkey" PRIMARY KEY ("id")
+);
+
+-- AddForeignKey
+ALTER TABLE "child_assessments" ADD CONSTRAINT "child_assessments_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- CreateEnum
+CREATE TYPE "CountryStatus" AS ENUM ('AVAILABLE', 'NOT_AVAILABLE', 'MAINTENANCE', 'SCHEDULED');
+
+-- CreateTable
+CREATE TABLE "country_availability" (
+    "id" TEXT NOT NULL,
+    "countryCode" VARCHAR(2) NOT NULL,
+    "countryName" TEXT NOT NULL,
+    "countryFlag" TEXT NOT NULL DEFAULT '',
+    "status" "CountryStatus" NOT NULL DEFAULT 'NOT_AVAILABLE',
+    "launchDate" TIMESTAMP(3),
+    "notes" TEXT,
+    "updatedById" TEXT,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "country_availability_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "country_audit_logs" (
+    "id" TEXT NOT NULL,
+    "countryId" TEXT NOT NULL,
+    "prevStatus" "CountryStatus",
+    "newStatus" "CountryStatus",
+    "prevLaunch" TIMESTAMP(3),
+    "newLaunch" TIMESTAMP(3),
+    "action" TEXT NOT NULL,
+    "performedById" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "country_audit_logs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "country_access_attempts" (
+    "id" TEXT NOT NULL,
+    "countryId" TEXT,
+    "countryCode" TEXT,
+    "countryName" TEXT,
+    "type" TEXT NOT NULL,
+    "ip" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "country_access_attempts_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "country_availability_countryCode_key" ON "country_availability"("countryCode");
+
+-- CreateIndex
+CREATE INDEX "country_availability_status_idx" ON "country_availability"("status");
+
+-- CreateIndex
+CREATE INDEX "country_availability_launchDate_idx" ON "country_availability"("launchDate");
+
+-- CreateIndex
+CREATE INDEX "country_audit_logs_countryId_createdAt_idx" ON "country_audit_logs"("countryId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "country_audit_logs_performedById_idx" ON "country_audit_logs"("performedById");
+
+-- CreateIndex
+CREATE INDEX "country_access_attempts_countryId_createdAt_idx" ON "country_access_attempts"("countryId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "country_access_attempts_createdAt_idx" ON "country_access_attempts"("createdAt");
+
+-- AddForeignKey
+ALTER TABLE "country_availability" ADD CONSTRAINT "country_availability_updatedById_fkey" FOREIGN KEY ("updatedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "country_audit_logs" ADD CONSTRAINT "country_audit_logs_countryId_fkey" FOREIGN KEY ("countryId") REFERENCES "country_availability"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "country_audit_logs" ADD CONSTRAINT "country_audit_logs_performedById_fkey" FOREIGN KEY ("performedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "country_access_attempts" ADD CONSTRAINT "country_access_attempts_countryId_fkey" FOREIGN KEY ("countryId") REFERENCES "country_availability"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- CreateTable
+CREATE TABLE "payment_transactions" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "platform" TEXT NOT NULL,
+    "txRef" TEXT,
+    "gatewayTxId" TEXT,
+    "plan" TEXT,
+    "amount" DOUBLE PRECISION,
+    "currency" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "failureReason" TEXT,
+    "gatewayResponse" JSONB,
+    "initiatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "resolvedAt" TIMESTAMP(3),
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "payment_transactions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "payment_transactions_userId_idx" ON "payment_transactions"("userId");
+
+-- CreateIndex
+CREATE INDEX "payment_transactions_status_idx" ON "payment_transactions"("status");
+
+-- CreateIndex
+CREATE INDEX "payment_transactions_platform_idx" ON "payment_transactions"("platform");
+
+-- CreateIndex
+CREATE INDEX "payment_transactions_txRef_idx" ON "payment_transactions"("txRef");
+
+-- CreateIndex
+CREATE INDEX "payment_transactions_initiatedAt_idx" ON "payment_transactions"("initiatedAt");
+
+-- AddForeignKey
+ALTER TABLE "payment_transactions" ADD CONSTRAINT "payment_transactions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

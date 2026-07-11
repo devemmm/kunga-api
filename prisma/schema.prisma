@@ -169,7 +169,7 @@ model Subscription {
   periodEnd              DateTime?
   cancelledAt            DateTime?
   promoCode              String?
-  amountUsd              Float?    // amount charged at initiation (in USD)
+  amount                 Float?    // amount charged at initiation
   currency               String?   // currency used at payment (e.g. "USD", "RWF", "KES")
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
@@ -192,7 +192,7 @@ model PaymentTransaction {
   txRef           String?  // our internal tx_ref sent to gateway
   gatewayTxId     String?  // numeric/string ID returned by gateway after verification
   plan            String?  // e.g. "premium_annual"
-  amountUsd       Float?
+  amount          Float?
   currency        String?  // e.g. "USD", "RWF", "KES"
   status          String   @default("PENDING") // PENDING | SUCCESS | FAILED | CANCELLED
   failureReason   String?  // human-readable reason from gateway or internal error

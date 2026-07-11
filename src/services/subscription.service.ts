@@ -186,13 +186,13 @@ export const PaymentService = {
     // Record a pending subscription so we can link the webhook / verify back to the user
     await prisma.subscription.upsert({
       where:  { userId },
-      update: { flutterwaveTxId: txRef, plan, platform: 'flutterwave', amountUsd: amount, currency },
-      create: { userId, plan, platform: 'flutterwave', flutterwaveTxId: txRef, amountUsd: amount, currency },
+      update: { flutterwaveTxId: txRef, plan, platform: 'flutterwave', amount, currency },
+      create: { userId, plan, platform: 'flutterwave', flutterwaveTxId: txRef, amount, currency },
     });
 
     // Append-only transaction log
     await prisma.paymentTransaction.create({
-      data: { userId, platform: 'flutterwave', txRef, plan, amountUsd: amount, currency, status: 'PENDING' },
+      data: { userId, platform: 'flutterwave', txRef, plan, amount, currency, status: 'PENDING' },
     });
 
     return { paymentLink, txRef, amount, currency };
@@ -329,7 +329,24 @@ export const PaymentService = {
       prisma.paymentTransaction.findMany({
         where, skip, take: limit,
         orderBy: { initiatedAt: 'desc' },
-        include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+        include: {
+          user: {
+            select: {
+              id: true, name: true, email: true, avatarUrl: true,
+              phone: true, role: true, subscriptionStatus: true,
+              isActive: true, createdAt: true, lastLoginAt: true,
+              childProfile: { select: { childName: true, ageMonths: true, challenges: true } },
+              subscription: {
+                select: {
+                  plan: true, status: true, platform: true,
+                  periodStart: true, periodEnd: true, cancelledAt: true,
+                  cardLast4: true, cardBrand: true,
+                  mobileMoneyProvider: true, mobileMoneyPhone: true,
+                },
+              },
+            },
+          },
+        },
       }),
       prisma.paymentTransaction.count({ where }),
     ]);
