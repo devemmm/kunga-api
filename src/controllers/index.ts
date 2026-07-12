@@ -168,10 +168,21 @@ export const PaymentController = {
 
   async myHistory(req: FastifyRequest, reply: FastifyReply) {
     const user = (req as any).currentUser;
-    const { page, limit } = req.query as any;
+    const { page, limit, status } = req.query as any;
     return reply.send(await PaymentService.getUserPaymentHistory(
-      user.id, Number(page ?? 1), Number(limit ?? 20),
+      user.id, Number(page ?? 1), Number(limit ?? 20), status,
     ));
+  },
+
+  async exportHistory(req: FastifyRequest, reply: FastifyReply) {
+    const user = (req as any).currentUser;
+    const { status } = req.query as any;
+    const pdf = await PaymentService.exportHistoryPdf(user.id, status);
+    const label = status ? `_${status.toLowerCase()}` : '';
+    reply
+      .header('Content-Type', 'application/pdf')
+      .header('Content-Disposition', `attachment; filename="kunga_payment_history${label}.pdf"`)
+      .send(pdf);
   },
 
   async receiptPdf(req: FastifyRequest, reply: FastifyReply) {

@@ -427,11 +427,12 @@ export const PaymentService = {
     });
   },
 
-  async getUserPaymentHistory(userId: string, page = 1, limit = 20) {
-    const skip = (page - 1) * limit;
+  async getUserPaymentHistory(userId: string, page = 1, limit = 20, status?: string) {
+    const skip  = (page - 1) * limit;
+    const where = { userId, ...(status ? { status } : {}) };
     const [transactions, total] = await Promise.all([
       prisma.paymentTransaction.findMany({
-        where: { userId },
+        where,
         orderBy: { initiatedAt: 'desc' },
         skip,
         take: limit,
@@ -441,9 +442,94 @@ export const PaymentService = {
           txRef: true,
         },
       }),
-      prisma.paymentTransaction.count({ where: { userId } }),
+      prisma.paymentTransaction.count({ where }),
     ]);
     return { transactions, total, page, limit };
+  },
+
+  async exportHistoryPdf(userId: string, status?: string): Promise<Buffer> {
+    const where = { userId, ...(status ? { status } : {}) };
+    const transactions = await prisma.paymentTransaction.findMany({
+      where,
+      orderBy: { initiatedAt: 'desc' },
+      select: {
+        id: true, platform: true, plan: true, amount: true, currency: true,
+        status: true, failureReason: true, initiatedAt: true, resolvedAt: true, txRef: true,
+      },
+    });
+
+    const PDFDocument = (await import('pdfkit')).default;
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const chunks: Buffer[] = [];
+    doc.on('data', (c: Buffer) => chunks.push(c));
+
+    const fmt = (d: Date | null | undefined) =>
+      d ? new Date(d).toLocaleDateString('en-US', { dateStyle: 'medium' }) : '—';
+    const amt = (tx: any) =>
+      tx.amount != null ? `${tx.currency ?? 'USD'} ${Number(tx.amount).toFixed(2)}` : '—';
+    const statusColors: Record<string, string> = {
+      SUCCESS: '#10b981', PENDING: '#f59e0b', FAILED: '#ef4444', CANCELLED: '#6b7280',
+    };
+    const totalPaid = transactions
+      .filter(tx => tx.status === 'SUCCESS')
+      .reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
+    const currency = transactions.find(tx => tx.currency)?.currency ?? 'USD';
+
+    // ── Header ────────────────────────────────────────────────────────────────
+    doc.rect(0, 0, doc.page.width, 110).fill('#0d9488');
+    doc.fillColor('#ffffff').fontSize(20).font('Helvetica-Bold').text('Kunga Basics', 50, 30);
+    doc.fontSize(11).font('Helvetica').text('Payment History Export', 50, 58);
+    const filterLabel = status ? ` · ${status.charAt(0) + status.slice(1).toLowerCase()}` : '';
+    doc.fontSize(9).fillColor('rgba(255,255,255,0.7)').text(
+      `${transactions.length} transaction${transactions.length !== 1 ? 's' : ''}${filterLabel} · Total paid: ${currency} ${totalPaid.toFixed(2)}`,
+      50, 80,
+    );
+
+    // ── Table header ──────────────────────────────────────────────────────────
+    const cols = { date: 50, plan: 130, platform: 265, amount: 360, status: 445 };
+    const headerY = 130;
+    doc.rect(50, headerY, doc.page.width - 100, 22).fill('#f3f4f6');
+    doc.fillColor('#6b7280').fontSize(8).font('Helvetica-Bold');
+    doc.text('DATE',     cols.date,     headerY + 7);
+    doc.text('PLAN',     cols.plan,     headerY + 7);
+    doc.text('PLATFORM', cols.platform, headerY + 7);
+    doc.text('AMOUNT',   cols.amount,   headerY + 7);
+    doc.text('STATUS',   cols.status,   headerY + 7);
+
+    // ── Rows ──────────────────────────────────────────────────────────────────
+    let y = headerY + 30;
+    for (const tx of transactions) {
+      if (y > doc.page.height - 80) {
+        doc.addPage();
+        y = 60;
+      }
+      const color = statusColors[tx.status ?? ''] ?? '#6b7280';
+      const rowH  = 22;
+      if (transactions.indexOf(tx) % 2 === 0) {
+        doc.rect(50, y - 4, doc.page.width - 100, rowH).fill('#fafafa').fillColor('#111827');
+      }
+      doc.fillColor('#374151').fontSize(8.5).font('Helvetica');
+      doc.text(fmt(tx.initiatedAt),                    cols.date,     y, { width: 75 });
+      doc.text((tx.plan ?? '—').replace('_', ' · '),   cols.plan,     y, { width: 130 });
+      doc.text(tx.platform ?? '—',                     cols.platform, y, { width: 90 });
+      doc.text(amt(tx),                                cols.amount,   y, { width: 80 });
+      doc.fillColor(color).font('Helvetica-Bold')
+         .text(tx.status ?? '—',                       cols.status,   y, { width: 80 });
+      y += rowH;
+      doc.moveTo(50, y - 2).lineTo(doc.page.width - 50, y - 2).strokeColor('#f3f4f6').lineWidth(0.5).stroke();
+    }
+
+    // ── Footer ────────────────────────────────────────────────────────────────
+    const footerY = doc.page.height - 50;
+    doc.moveTo(50, footerY).lineTo(doc.page.width - 50, footerY).strokeColor('#e5e7eb').lineWidth(1).stroke();
+    doc.fillColor('#9ca3af').fontSize(8).font('Helvetica')
+       .text(`Generated on ${new Date().toLocaleDateString('en-US', { dateStyle: 'long' })} · Kunga Basics`, 50, footerY + 10, { align: 'center' });
+
+    doc.end();
+    return new Promise((resolve, reject) => {
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+    });
   },
 
   async manualActivate(txId: string, adminId: string) {
