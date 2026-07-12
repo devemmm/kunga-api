@@ -377,6 +377,36 @@ All values are editable live from **Admin Portal → Pricing** — no redeploy n
 1. `POST /donations/initiate` with `method: flutterwave` → hosted link (tx_ref: `DON-...`)
 2. `POST /webhooks/flutterwave` → marks donation COMPLETED
 
+### User Payment History
+```
+GET /payments/my-history?page=1&limit=20
+```
+Requires `Authorization: Bearer <token>`. Returns the authenticated user's own `PaymentTransaction` rows (newest first), paginated.
+
+```json
+{
+  "transactions": [
+    {
+      "id": "clx...",
+      "platform": "flutterwave",
+      "plan": "premium_annual",
+      "amount": 140.00,
+      "currency": "USD",
+      "status": "SUCCESS",
+      "failureReason": null,
+      "initiatedAt": "2025-07-10T14:22:00.000Z",
+      "resolvedAt": "2025-07-10T14:22:45.000Z",
+      "txRef": "KB-1234567890"
+    }
+  ],
+  "total": 3,
+  "page": 1,
+  "limit": 20
+}
+```
+
+Status values: `SUCCESS` | `PENDING` | `FAILED` | `CANCELLED`
+
 ---
 
 ## Security

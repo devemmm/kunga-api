@@ -165,6 +165,14 @@ export const PaymentController = {
       page: Number(page ?? 1), limit: Number(limit ?? 50),
     }));
   },
+
+  async myHistory(req: FastifyRequest, reply: FastifyReply) {
+    const user = (req as any).currentUser;
+    const { page, limit } = req.query as any;
+    return reply.send(await PaymentService.getUserPaymentHistory(
+      user.id, Number(page ?? 1), Number(limit ?? 20),
+    ));
+  },
 };
 
 // ─── DONATION CONTROLLER ─────────────────────────────────────────────────────

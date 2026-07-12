@@ -360,6 +360,25 @@ export const PaymentService = {
     return { transactions, total, page, limit, stats };
   },
 
+  async getUserPaymentHistory(userId: string, page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    const [transactions, total] = await Promise.all([
+      prisma.paymentTransaction.findMany({
+        where: { userId },
+        orderBy: { initiatedAt: 'desc' },
+        skip,
+        take: limit,
+        select: {
+          id: true, platform: true, plan: true, amount: true, currency: true,
+          status: true, failureReason: true, initiatedAt: true, resolvedAt: true,
+          txRef: true,
+        },
+      }),
+      prisma.paymentTransaction.count({ where: { userId } }),
+    ]);
+    return { transactions, total, page, limit };
+  },
+
   async manualActivate(txId: string, adminId: string) {
     const subscription = await prisma.subscription.findUnique({ where: { id: txId } });
     if (!subscription) throw Object.assign(new Error('Transaction not found'), { status: 404 });
