@@ -173,6 +173,16 @@ export const PaymentController = {
       user.id, Number(page ?? 1), Number(limit ?? 20),
     ));
   },
+
+  async receiptPdf(req: FastifyRequest, reply: FastifyReply) {
+    const user  = (req as any).currentUser;
+    const { id } = req.params as any;
+    const pdf = await PaymentService.generateReceiptPdf(user.id, id);
+    reply
+      .header('Content-Type', 'application/pdf')
+      .header('Content-Disposition', `attachment; filename="kunga_receipt_${id}.pdf"`)
+      .send(pdf);
+  },
 };
 
 // ─── DONATION CONTROLLER ─────────────────────────────────────────────────────

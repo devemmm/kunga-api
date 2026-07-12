@@ -71,6 +71,7 @@ export async function paymentsRoutes(server: FastifyInstance) {
   server.post('/mobile-money/:txId/activate', { schema: { tags: ['Payments'], summary: '[Admin] Manual activation', security: [{ bearerAuth: [] }] }, preHandler: [requirePermission('MANAGE_SUBSCRIPTIONS')] }, PaymentController.manualActivate);
   server.get('/transactions', { schema: { tags: ['Payments'], summary: '[Admin] List all payment transactions', security: [{ bearerAuth: [] }], querystring: { type: 'object', properties: { platform: { type: 'string' }, status: { type: 'string' }, plan: { type: 'string' }, search: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' }, page: { type: 'integer' }, limit: { type: 'integer' } } } }, preHandler: [requirePermission('VIEW_SUBSCRIPTIONS', 'MANAGE_SUBSCRIPTIONS')] }, PaymentController.listTransactions);
   server.get('/my-history', { schema: { tags: ['Payments'], summary: 'Get my payment history', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, PaymentController.myHistory);
+  server.get('/receipt/:id', { schema: { tags: ['Payments'], summary: 'Download receipt PDF', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, PaymentController.receiptPdf);
 }
 
 export async function donationsRoutes(server: FastifyInstance) {

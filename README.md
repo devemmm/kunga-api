@@ -407,6 +407,24 @@ Requires `Authorization: Bearer <token>`. Returns the authenticated user's own `
 
 Status values: `SUCCESS` | `PENDING` | `FAILED` | `CANCELLED`
 
+### Receipt PDF Download
+```
+GET /payments/receipt/:id
+```
+Requires `Authorization: Bearer <token>`. Generates and streams a PDF receipt for the specified transaction. Only the transaction owner can download their own receipt.
+
+**Response:** `Content-Type: application/pdf` — binary PDF stream with filename `kunga_receipt_<id>.pdf`.
+
+**Error:** `404` if the transaction does not belong to the authenticated user.
+
+The PDF is generated server-side using [pdfkit](https://pdfkit.org/) and includes:
+- Transaction ID, reference, plan, platform, currency, amount, status
+- Initiated and resolved timestamps
+- Failure reason (for `FAILED` transactions)
+- Kunga Basics branded header and footer
+
+> **Note on `failureReason`:** The field stores the payment-level failure reason (`processor_response` or `data.status` from Flutterwave). It no longer falls back to `flwData.message` (which was the API-call status string "Transaction fetched successfully", not an actual payment error).
+
 ---
 
 ## Security

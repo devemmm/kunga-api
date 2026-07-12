@@ -212,7 +212,8 @@ export const PaymentService = {
     }
 
     if (flwData.status !== 'success' || flwData.data?.status !== 'successful') {
-      const failureReason = flwData.data?.processor_response ?? flwData.message ?? flwData.data?.status ?? 'Payment unsuccessful';
+      // Use payment-level reason only — flwData.message is the API call status ("Transaction fetched successfully"), not a failure reason
+      const failureReason = flwData.data?.processor_response ?? flwData.data?.auth_model ?? flwData.data?.status ?? 'Payment unsuccessful';
       await prisma.paymentTransaction.updateMany({
         where:  { txRef, status: 'PENDING' },
         data:   { status: 'FAILED', failureReason, gatewayResponse: flwData, resolvedAt: new Date() },
@@ -358,6 +359,72 @@ export const PaymentService = {
     });
 
     return { transactions, total, page, limit, stats };
+  },
+
+  async generateReceiptPdf(userId: string, txId: string): Promise<Buffer> {
+    const tx = await prisma.paymentTransaction.findFirst({
+      where: { id: txId, userId },
+      select: { id: true, platform: true, plan: true, amount: true, currency: true,
+                status: true, failureReason: true, initiatedAt: true, resolvedAt: true, txRef: true },
+    });
+    if (!tx) throw Object.assign(new Error('Transaction not found'), { status: 404 });
+
+    const PDFDocument = (await import('pdfkit')).default;
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const chunks: Buffer[] = [];
+    doc.on('data', (c: Buffer) => chunks.push(c));
+
+    const fmt = (d: Date | null | undefined) => d ? new Date(d).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+    const amt = tx.amount != null ? `${tx.currency ?? 'USD'} ${Number(tx.amount).toFixed(2)}` : '—';
+    const statusColors: Record<string, string> = { SUCCESS: '#10b981', PENDING: '#f59e0b', FAILED: '#ef4444', CANCELLED: '#6b7280' };
+    const color = statusColors[tx.status ?? ''] ?? '#6b7280';
+
+    // ── Header band ───────────────────────────────────────────────────────────
+    doc.rect(0, 0, doc.page.width, 120).fill('#0d9488');
+    doc.fillColor('#ffffff').fontSize(22).font('Helvetica-Bold').text('Kunga Basics', 50, 35);
+    doc.fontSize(11).font('Helvetica').text('Payment Receipt', 50, 65);
+    doc.fontSize(13).font('Helvetica-Bold').fillColor(color)
+       .text(tx.status ?? '—', doc.page.width - 160, 48, { width: 110, align: 'right' });
+
+    // ── Amount hero ───────────────────────────────────────────────────────────
+    doc.fillColor('#111827').fontSize(28).font('Helvetica-Bold').text(amt, 50, 148, { align: 'center' });
+
+    // ── Divider ───────────────────────────────────────────────────────────────
+    doc.moveTo(50, 195).lineTo(doc.page.width - 50, 195).strokeColor('#e5e7eb').stroke();
+
+    // ── Detail rows ───────────────────────────────────────────────────────────
+    const rows: [string, string][] = [
+      ['Transaction ID', tx.id],
+      ['Reference',      tx.txRef ?? '—'],
+      ['Plan',           tx.plan ?? '—'],
+      ['Platform',       tx.platform ?? '—'],
+      ['Amount',         amt],
+      ['Currency',       tx.currency ?? '—'],
+      ['Status',         tx.status ?? '—'],
+      ['Initiated',      fmt(tx.initiatedAt)],
+      ['Resolved',       fmt(tx.resolvedAt)],
+      ...(tx.failureReason ? [['Failure Reason', tx.failureReason] as [string, string]] : []),
+    ];
+
+    let y = 215;
+    for (const [label, value] of rows) {
+      doc.fillColor('#6b7280').fontSize(10).font('Helvetica').text(label, 50, y);
+      doc.fillColor('#111827').fontSize(10).font('Helvetica-Bold').text(value, 220, y, { width: 325 });
+      y += 26;
+      doc.moveTo(50, y - 4).lineTo(doc.page.width - 50, y - 4).strokeColor('#f3f4f6').lineWidth(0.5).stroke();
+    }
+
+    // ── Footer ────────────────────────────────────────────────────────────────
+    const footerY = doc.page.height - 60;
+    doc.moveTo(50, footerY).lineTo(doc.page.width - 50, footerY).strokeColor('#e5e7eb').lineWidth(1).stroke();
+    doc.fillColor('#9ca3af').fontSize(9).font('Helvetica')
+       .text(`Generated on ${new Date().toLocaleDateString('en-US', { dateStyle: 'long' })} · Kunga Basics`, 50, footerY + 12, { align: 'center' });
+
+    doc.end();
+    return new Promise((resolve, reject) => {
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+    });
   },
 
   async getUserPaymentHistory(userId: string, page = 1, limit = 20) {
