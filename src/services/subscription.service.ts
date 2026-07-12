@@ -380,17 +380,44 @@ export const PaymentService = {
     const color = statusColors[tx.status ?? ''] ?? '#6b7280';
 
     // ── Header band ───────────────────────────────────────────────────────────
-    doc.rect(0, 0, doc.page.width, 120).fill('#0d9488');
-    doc.fillColor('#ffffff').fontSize(22).font('Helvetica-Bold').text('Kunga Basics', 50, 35);
-    doc.fontSize(11).font('Helvetica').text('Payment Receipt', 50, 65);
-    doc.fontSize(13).font('Helvetica-Bold').fillColor(color)
-       .text(tx.status ?? '—', doc.page.width - 160, 48, { width: 110, align: 'right' });
+    const W = doc.page.width;
+    doc.rect(0, 0, W, 130).fill('#0d9488');
+    // subtle dark overlay stripe at bottom of band
+    doc.rect(0, 110, W, 20).fill('#0a7a70');
+
+    // Logo mark — teal circle with "K" letterform
+    const lx = 50, ly = 22, lr = 36;
+    doc.circle(lx + lr, ly + lr, lr).fill('rgba(255,255,255,0.15)');
+    doc.circle(lx + lr, ly + lr, lr - 3).lineWidth(2).strokeColor('rgba(255,255,255,0.6)').stroke();
+    // K stem
+    doc.moveTo(lx + lr - 8, ly + 16).lineTo(lx + lr - 8, ly + lr * 2 - 16).lineWidth(4).strokeColor('#ffffff').stroke();
+    // K top arm
+    doc.moveTo(lx + lr - 8, ly + lr).lineTo(lx + lr + 14, ly + 16).lineWidth(4).strokeColor('#ffffff').stroke();
+    // K bottom arm
+    doc.moveTo(lx + lr - 8, ly + lr).lineTo(lx + lr + 14, ly + lr * 2 - 16).lineWidth(4).strokeColor('#ffffff').stroke();
+
+    // Company name + document type
+    const tx0 = lx + lr * 2 + 16;
+    doc.fillColor('#ffffff').fontSize(22).font('Helvetica-Bold').text('Kunga Basics', tx0, 30);
+    doc.fillColor('rgba(255,255,255,0.75)').fontSize(10).font('Helvetica').text('PAYMENT RECEIPT', tx0, 58);
+
+    // Status badge (top-right)
+    const badgeBg: Record<string, string> = { SUCCESS: '#10b981', PENDING: '#f59e0b', FAILED: '#ef4444', CANCELLED: '#6b7280' };
+    const badgeColor = badgeBg[tx.status ?? ''] ?? '#6b7280';
+    const badgeLabel = tx.status ?? '—';
+    doc.roundedRect(W - 120, 32, 90, 26, 13).fill(badgeColor);
+    doc.fillColor('#ffffff').fontSize(10).font('Helvetica-Bold').text(badgeLabel, W - 120, 39, { width: 90, align: 'center' });
+
+    // Receipt ID in dark stripe
+    doc.fillColor('rgba(255,255,255,0.6)').fontSize(8).font('Helvetica')
+       .text(`Receipt #${tx.id.slice(-8).toUpperCase()}`, tx0, 115, { lineBreak: false })
+       .text(new Date().toLocaleDateString('en-US', { dateStyle: 'long' }), tx0 + 160, 115, { lineBreak: false });
 
     // ── Amount hero ───────────────────────────────────────────────────────────
-    doc.fillColor('#111827').fontSize(28).font('Helvetica-Bold').text(amt, 50, 148, { align: 'center' });
+    doc.fillColor('#111827').fontSize(28).font('Helvetica-Bold').text(amt, 50, 155, { align: 'center' });
 
     // ── Divider ───────────────────────────────────────────────────────────────
-    doc.moveTo(50, 195).lineTo(doc.page.width - 50, 195).strokeColor('#e5e7eb').stroke();
+    doc.moveTo(50, 205).lineTo(doc.page.width - 50, 205).strokeColor('#e5e7eb').stroke();
 
     // ── Detail rows ───────────────────────────────────────────────────────────
     const rows: [string, string][] = [
@@ -406,7 +433,7 @@ export const PaymentService = {
       ...(tx.failureReason ? [['Failure Reason', tx.failureReason] as [string, string]] : []),
     ];
 
-    let y = 215;
+    let y = 225;
     for (const [label, value] of rows) {
       doc.fillColor('#6b7280').fontSize(10).font('Helvetica').text(label, 50, y);
       doc.fillColor('#111827').fontSize(10).font('Helvetica-Bold').text(value, 220, y, { width: 325 });
@@ -476,18 +503,38 @@ export const PaymentService = {
     const currency = transactions.find(tx => tx.currency)?.currency ?? 'USD';
 
     // ── Header ────────────────────────────────────────────────────────────────
-    doc.rect(0, 0, doc.page.width, 110).fill('#0d9488');
-    doc.fillColor('#ffffff').fontSize(20).font('Helvetica-Bold').text('Kunga Basics', 50, 30);
-    doc.fontSize(11).font('Helvetica').text('Payment History Export', 50, 58);
-    const filterLabel = status ? ` · ${status.charAt(0) + status.slice(1).toLowerCase()}` : '';
-    doc.fontSize(9).fillColor('rgba(255,255,255,0.7)').text(
-      `${transactions.length} transaction${transactions.length !== 1 ? 's' : ''}${filterLabel} · Total paid: ${currency} ${totalPaid.toFixed(2)}`,
-      50, 80,
-    );
+    const W = doc.page.width;
+    doc.rect(0, 0, W, 120).fill('#0d9488');
+    doc.rect(0, 100, W, 20).fill('#0a7a70');
+
+    // Logo mark
+    const lx = 50, ly = 18, lr = 32;
+    doc.circle(lx + lr, ly + lr, lr).fill('rgba(255,255,255,0.15)');
+    doc.circle(lx + lr, ly + lr, lr - 3).lineWidth(2).strokeColor('rgba(255,255,255,0.6)').stroke();
+    doc.moveTo(lx + lr - 7, ly + 14).lineTo(lx + lr - 7, ly + lr * 2 - 14).lineWidth(3.5).strokeColor('#ffffff').stroke();
+    doc.moveTo(lx + lr - 7, ly + lr).lineTo(lx + lr + 13, ly + 14).lineWidth(3.5).strokeColor('#ffffff').stroke();
+    doc.moveTo(lx + lr - 7, ly + lr).lineTo(lx + lr + 13, ly + lr * 2 - 14).lineWidth(3.5).strokeColor('#ffffff').stroke();
+
+    const tx0 = lx + lr * 2 + 14;
+    doc.fillColor('#ffffff').fontSize(20).font('Helvetica-Bold').text('Kunga Basics', tx0, 24);
+    doc.fillColor('rgba(255,255,255,0.75)').fontSize(9).font('Helvetica').text('PAYMENT HISTORY EXPORT', tx0, 52);
+
+    // Stats summary (right side)
+    const filterLabel = status ? status.charAt(0) + status.slice(1).toLowerCase() : 'All';
+    const statsX = W - 220;
+    doc.fillColor('rgba(255,255,255,0.55)').fontSize(8).font('Helvetica').text('TRANSACTIONS', statsX, 28, { width: 80, align: 'center' });
+    doc.fillColor('#ffffff').fontSize(18).font('Helvetica-Bold').text(String(transactions.length), statsX, 40, { width: 80, align: 'center' });
+    doc.fillColor('rgba(255,255,255,0.55)').fontSize(8).font('Helvetica').text('TOTAL PAID', statsX + 100, 28, { width: 80, align: 'center' });
+    doc.fillColor('#ffffff').fontSize(12).font('Helvetica-Bold').text(`${currency} ${totalPaid.toFixed(2)}`, statsX + 100, 42, { width: 80, align: 'center' });
+
+    // Filter label in dark stripe
+    doc.fillColor('rgba(255,255,255,0.6)').fontSize(8).font('Helvetica')
+       .text(`Filter: ${filterLabel}`, tx0, 107, { lineBreak: false })
+       .text(new Date().toLocaleDateString('en-US', { dateStyle: 'long' }), tx0 + 100, 107, { lineBreak: false });
 
     // ── Table header ──────────────────────────────────────────────────────────
     const cols = { date: 50, plan: 130, platform: 265, amount: 360, status: 445 };
-    const headerY = 130;
+    const headerY = 140;
     doc.rect(50, headerY, doc.page.width - 100, 22).fill('#f3f4f6');
     doc.fillColor('#6b7280').fontSize(8).font('Helvetica-Bold');
     doc.text('DATE',     cols.date,     headerY + 7);
@@ -497,7 +544,7 @@ export const PaymentService = {
     doc.text('STATUS',   cols.status,   headerY + 7);
 
     // ── Rows ──────────────────────────────────────────────────────────────────
-    let y = headerY + 30;
+    let y = headerY + 28;
     for (const tx of transactions) {
       if (y > doc.page.height - 80) {
         doc.addPage();
