@@ -85,12 +85,12 @@ export async function webhooksRoutes(server: FastifyInstance) {
         }
 
       } else if (tx_ref.startsWith('DON-')) {
-        // Donation payment
+        // Donation payment — stored by tx_ref, not numeric flwTxId
         await prisma.donation.updateMany({
-          where: { flutterwaveTxId: String(flwTxId) },
+          where: { flutterwaveTxId: tx_ref, status: 'PENDING' },
           data: { status: 'COMPLETED' },
         });
-        const donation = await prisma.donation.findFirst({ where: { flutterwaveTxId: String(flwTxId) } });
+        const donation = await prisma.donation.findFirst({ where: { flutterwaveTxId: tx_ref } });
         if (donation) {
           sendDonationReceiptEmail(donation.email, donation.donorName ?? '', donation.amountUsd, donation.currency, donation.campaign ?? 'Kunga Basics').catch(() => {});
         }

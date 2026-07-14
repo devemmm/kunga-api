@@ -264,13 +264,28 @@ export const PaymentService = {
   },
 
   async handleFlutterwaveCallback(txRef: string, status: string) {
-    // Activate the subscription immediately at callback time so it doesn't depend
-    // on the mobile app successfully intercepting the deep link redirect.
-    if (status === 'successful' && txRef) {
-      try { await PaymentService.verifyFlutterwave(txRef); } catch {}
+    if (txRef) {
+      if (txRef.startsWith('DON-')) {
+        // Donation callback — verify with Flutterwave and update Donation record
+        try {
+          const flwRes  = await fetch(
+            `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(txRef)}`,
+            { headers: { 'Authorization': `Bearer ${config.flutterwave.secretKey}` } },
+          );
+          const flwData = await flwRes.json() as any;
+          const verified = flwData.status === 'success' && flwData.data?.status === 'successful';
+          await prisma.donation.updateMany({
+            where: { flutterwaveTxId: txRef, status: 'PENDING' },
+            data:  { status: verified ? 'COMPLETED' : 'FAILED' },
+          });
+        } catch { /* swallow — redirect still proceeds */ }
+      } else {
+        // Subscription callback
+        if (status === 'successful') {
+          try { await PaymentService.verifyFlutterwave(txRef); } catch {}
+        }
+      }
     }
-    // Redirect to the app's deep link scheme — NOT back to config.flutterwave.redirectUrl,
-    // which is the API callback URL itself (would cause an infinite redirect loop).
     const deepLink = `${config.app.deepLinkScheme}://payment?status=${status}&tx_ref=${encodeURIComponent(txRef)}`;
     return { deepLink };
   },
@@ -455,22 +470,58 @@ export const PaymentService = {
   },
 
   async getUserPaymentHistory(userId: string, page = 1, limit = 20, status?: string) {
-    const skip  = (page - 1) * limit;
-    const where = { userId, ...(status ? { status } : {}) };
-    const [transactions, total] = await Promise.all([
+    // Donation statuses map to PaymentTransaction statuses for unified display
+    const donationStatusMap: Record<string, string> = {
+      COMPLETED: 'SUCCESS', PENDING: 'PENDING', FAILED: 'FAILED', CANCELLED: 'CANCELLED',
+    };
+
+    const [rawTxns, rawDonations] = await Promise.all([
       prisma.paymentTransaction.findMany({
-        where,
+        where: { userId, ...(status ? { status } : {}) },
         orderBy: { initiatedAt: 'desc' },
-        skip,
-        take: limit,
         select: {
           id: true, platform: true, plan: true, amount: true, currency: true,
-          status: true, failureReason: true, initiatedAt: true, resolvedAt: true,
-          txRef: true,
+          status: true, failureReason: true, initiatedAt: true, resolvedAt: true, txRef: true,
         },
       }),
-      prisma.paymentTransaction.count({ where }),
+      prisma.donation.findMany({
+        where: {
+          userId,
+          ...(status
+            ? { status: (Object.entries(donationStatusMap).find(([, v]) => v === status)?.[0] as any) }
+            : {}),
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true, amountUsd: true, currency: true, status: true,
+          paymentMethod: true, campaign: true, createdAt: true,
+        },
+      }),
     ]);
+
+    // Normalise donations to the same shape as PaymentTransaction rows
+    const donationRows = rawDonations.map(d => ({
+      id:            d.id,
+      platform:      d.paymentMethod as string,
+      plan:          d.campaign ?? 'donation',
+      amount:        d.amountUsd,
+      currency:      d.currency,
+      status:        donationStatusMap[d.status] ?? d.status,
+      failureReason: null as string | null,
+      initiatedAt:   d.createdAt,
+      resolvedAt:    null as Date | null,
+      txRef:         null as string | null,
+      type:          'donation' as const,
+    }));
+
+    const txRows = rawTxns.map(t => ({ ...t, type: 'subscription' as const }));
+
+    // Merge and sort by date desc, then paginate
+    const merged = [...txRows, ...donationRows].sort(
+      (a, b) => new Date(b.initiatedAt).getTime() - new Date(a.initiatedAt).getTime(),
+    );
+    const total        = merged.length;
+    const transactions = merged.slice((page - 1) * limit, page * limit);
     return { transactions, total, page, limit };
   },
 
