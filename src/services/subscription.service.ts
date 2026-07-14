@@ -161,7 +161,7 @@ export const PaymentService = {
           tx_ref:   txRef,
           amount,
           currency,
-          redirect_url: config.flutterwave.redirectUrl,
+          redirect_url: 'kungabasics://payment',
           meta: { userId, tier: resolvedTier, period: resolvedPeriod, plan: data.plan },
           customer: { email: user.email, name: user.name ?? user.email },
           customizations: {
