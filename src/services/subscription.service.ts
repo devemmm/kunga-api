@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { prisma } from '../lib/prisma.js';
 import { config } from '../config/index.js';
 import { sendSubscriptionCancelledEmail, sendSubscriptionRestoredEmail } from '../lib/email.js';
@@ -400,19 +401,12 @@ export const PaymentService = {
     // subtle dark overlay stripe at bottom of band
     doc.rect(0, 110, W, 20).fill('#0a7a70');
 
-    // Logo mark — teal circle with "K" letterform
-    const lx = 50, ly = 22, lr = 36;
-    doc.circle(lx + lr, ly + lr, lr).fill('rgba(255,255,255,0.15)');
-    doc.circle(lx + lr, ly + lr, lr - 3).lineWidth(2).strokeColor('rgba(255,255,255,0.6)').stroke();
-    // K stem
-    doc.moveTo(lx + lr - 8, ly + 16).lineTo(lx + lr - 8, ly + lr * 2 - 16).lineWidth(4).strokeColor('#ffffff').stroke();
-    // K top arm
-    doc.moveTo(lx + lr - 8, ly + lr).lineTo(lx + lr + 14, ly + 16).lineWidth(4).strokeColor('#ffffff').stroke();
-    // K bottom arm
-    doc.moveTo(lx + lr - 8, ly + lr).lineTo(lx + lr + 14, ly + lr * 2 - 16).lineWidth(4).strokeColor('#ffffff').stroke();
+    // App logo
+    const logoPath = path.resolve(__dirname, '../../assets/logo.png');
+    doc.image(logoPath, 46, 18, { width: 82, height: 82 });
 
     // Company name + document type
-    const tx0 = lx + lr * 2 + 16;
+    const tx0 = 46 + 82 + 14;
     doc.fillColor('#ffffff').fontSize(22).font('Helvetica-Bold').text('Kunga Basics', tx0, 30);
     doc.fillColor('rgba(255,255,255,0.75)').fontSize(10).font('Helvetica').text('PAYMENT RECEIPT', tx0, 58);
 
@@ -558,15 +552,11 @@ export const PaymentService = {
     doc.rect(0, 0, W, 120).fill('#0d9488');
     doc.rect(0, 100, W, 20).fill('#0a7a70');
 
-    // Logo mark
-    const lx = 50, ly = 18, lr = 32;
-    doc.circle(lx + lr, ly + lr, lr).fill('rgba(255,255,255,0.15)');
-    doc.circle(lx + lr, ly + lr, lr - 3).lineWidth(2).strokeColor('rgba(255,255,255,0.6)').stroke();
-    doc.moveTo(lx + lr - 7, ly + 14).lineTo(lx + lr - 7, ly + lr * 2 - 14).lineWidth(3.5).strokeColor('#ffffff').stroke();
-    doc.moveTo(lx + lr - 7, ly + lr).lineTo(lx + lr + 13, ly + 14).lineWidth(3.5).strokeColor('#ffffff').stroke();
-    doc.moveTo(lx + lr - 7, ly + lr).lineTo(lx + lr + 13, ly + lr * 2 - 14).lineWidth(3.5).strokeColor('#ffffff').stroke();
+    // App logo
+    const logoPath = path.resolve(__dirname, '../../assets/logo.png');
+    doc.image(logoPath, 46, 16, { width: 74, height: 74 });
 
-    const tx0 = lx + lr * 2 + 14;
+    const tx0 = 46 + 74 + 14;
     doc.fillColor('#ffffff').fontSize(20).font('Helvetica-Bold').text('Kunga Basics', tx0, 24);
     doc.fillColor('rgba(255,255,255,0.75)').fontSize(9).font('Helvetica').text('PAYMENT HISTORY EXPORT', tx0, 52);
 
