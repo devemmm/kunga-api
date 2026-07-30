@@ -1,10 +1,12 @@
 import { prisma } from '../lib/prisma.js';
 import { config } from '../config/index.js';
 import { sendScholarshipGrantedEmail } from '../lib/email.js';
+import { PricingService } from './admin.service.js';
 import type { InitiateDonationInput, GrantScholarshipInput } from '../models/index.js';
 
 export const DonationService = {
   async initiate(data: InitiateDonationInput) {
+    await PricingService.checkPaymentAllowed();
     const txRef = `DON-${Date.now()}`;
     let checkoutUrl: string;
 

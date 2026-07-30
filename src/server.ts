@@ -375,6 +375,21 @@ Preview modules (\`isPreview: true\`) are always accessible.
     }
   });
 
+  // ─── PUBLIC: APP CONFIG (payment toggle, etc.) ────────────────────────────
+  server.get(`${API}/app/config`, {
+    schema: { tags: ['App'], summary: 'Get public app config flags for mobile' },
+  }, async (_req, reply) => {
+    try {
+      const rows = await prisma.$queryRaw<Array<{ key: string; value: string }>>`
+        SELECT key, value FROM app_config WHERE key IN ('allow_payment')
+      `;
+      const m = Object.fromEntries(rows.map((r: any) => [r.key, r.value]));
+      return reply.send({ allowPayment: (m.allow_payment ?? 'true') === 'true' });
+    } catch {
+      return reply.send({ allowPayment: true });
+    }
+  });
+
   // ─── HEALTH & ROOT ─────────────────────────────────────────────────────────
 
   server.get('/health', async () => ({

@@ -415,9 +415,22 @@ const DEFAULT_PRICING: Record<string, { value: string; description: string }> = 
   // ── WhatsApp contact ─────────────────────────────────────────────────────────
   whatsapp_enabled: { value: 'true',          description: 'Show WhatsApp contact button in the mobile app (true/false)' },
   whatsapp_number:  { value: '+250788596281', description: 'WhatsApp phone number (E.164 format, e.g. +250788596281)' },
+  // ── Payment control ───────────────────────────────────────────────────────────
+  allow_payment: { value: 'true', description: 'Enable or disable all payments — subscriptions and donations (true/false)' },
 };
 
 export const PricingService = {
+  /** Throws 403 if allow_payment is not 'true'. Call before any payment initiation. */
+  async checkPaymentAllowed() {
+    const val = await PricingService.get('allow_payment');
+    if (val !== 'true') {
+      throw Object.assign(
+        new Error('Payments are currently unavailable. Please try again later.'),
+        { status: 403 },
+      );
+    }
+  },
+
   /** Seed missing default pricing/config rows (app_config table is created by Prisma migrations). */
   async ensureTable() {
     // Seed missing defaults

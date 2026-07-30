@@ -137,6 +137,7 @@ export const SubscriptionService = {
 
 export const PaymentService = {
   async initiateFlutterwave(userId: string, data: FlutterwaveInitiateInput) {
+    await PricingService.checkPaymentAllowed();
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
     if (!user) throw Object.assign(new Error('User not found'), { status: 404 });
 
