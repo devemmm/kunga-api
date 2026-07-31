@@ -181,6 +181,11 @@ export async function webhooksRoutes(server: FastifyInstance) {
   server.post('/revenuecat', {
     schema: { tags: ['Webhooks'], summary: 'RevenueCat subscription webhook' },
   }, async (req, reply) => {
+    const authHeader = req.headers['authorization'];
+    if (config.revenuecat.webhookAuthKey && authHeader !== config.revenuecat.webhookAuthKey) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
     const body = req.body as any;
     const event = body.event;
 
