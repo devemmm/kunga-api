@@ -105,6 +105,7 @@ export async function askGadRoutes(server: FastifyInstance) {
   server.get('/', { schema: { tags: ['Ask Dr. Gad'], summary: 'My submissions', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, AskGadController.list);
   server.post('/', { schema: { tags: ['Ask Dr. Gad'], summary: 'Submit question (2/month)', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth, requireSubscription] }, AskGadController.submit);
   server.get('/upload-url', { schema: { tags: ['Ask Dr. Gad'], summary: 'Get R2 upload URL', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, AskGadController.getUploadUrl);
+  server.post('/upload', { schema: { tags: ['Ask Dr. Gad'], summary: 'Proxy upload: browser → API → MinIO (avoids CORS)', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, AskGadController.uploadMedia);
   server.get('/admin/queue', { schema: { tags: ['Ask Dr. Gad'], summary: '[Admin] Submission queue with search & filter', security: [{ bearerAuth: [] }] }, preHandler: [requirePermission('VIEW_QUESTIONS')] }, AskGadController.getQueue);
   server.get('/admin/:id', { schema: { tags: ['Ask Dr. Gad'], summary: '[Admin] Get single submission with full user details', security: [{ bearerAuth: [] }] }, preHandler: [requirePermission('VIEW_QUESTIONS')] }, AskGadController.getById);
   server.post('/admin/:id/respond', { schema: { tags: ['Ask Dr. Gad'], summary: '[Admin] Respond to submission', security: [{ bearerAuth: [] }] }, preHandler: [requirePermission('ANSWER_QUESTIONS')] }, AskGadController.respond);

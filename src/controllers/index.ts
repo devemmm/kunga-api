@@ -3,7 +3,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { VideoService } from '../services/video.service.js';
 import { SubscriptionService, PaymentService } from '../services/subscription.service.js';
-import { presignedPutMinio } from '../lib/minio.js';
+import { presignedPutMinio, uploadToMinio } from '../lib/minio.js';
 import { randomUUID } from 'crypto';
 import path from 'path';
 import { DonationService } from '../services/donation.service.js';
@@ -238,6 +238,26 @@ export const AskGadController = {
   },
   async getUploadUrl(_req: FastifyRequest, reply: FastifyReply) {
     return reply.send(await AskGadService.getUploadUrl());
+  },
+
+  /**
+   * Proxy upload: browser sends multipart file → API streams to MinIO.
+   * Avoids CORS issues with direct browser→MinIO PUT.
+   */
+  async uploadMedia(req: FastifyRequest, reply: FastifyReply) {
+    const data = await (req as any).file();
+    if (!data) return reply.status(400).send({ message: 'No file provided' });
+
+    const ext    = (data.filename?.split('.').pop() ?? 'bin').toLowerCase();
+    const key    = `ask-gad/submissions/${randomUUID()}.${ext}`;
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of data.file) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const buffer  = Buffer.concat(chunks);
+    const fileUrl = await uploadToMinio(key, buffer, data.mimetype ?? 'application/octet-stream');
+    return reply.send({ key, fileUrl });
   },
   async getQueue(req: FastifyRequest, reply: FastifyReply) {
     const { status, search, assignedToId, page, limit } = req.query as any;
