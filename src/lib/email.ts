@@ -159,7 +159,7 @@ export async function sendPasswordResetEmail(
   resetToken: string,
   isAdmin: boolean = false,
 ): Promise<void> {
-  const baseUrl = isAdmin ? config.app.portalUrl : config.app.publicSiteUrl;
+  const baseUrl = isAdmin ? config.app.portalUrl : config.app.userPortalUrl;
   const webUrl  = `${baseUrl}/reset-password?token=${resetToken}`;
 
   const html = layout('Reset your Kunga Basics password', `

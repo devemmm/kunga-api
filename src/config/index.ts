@@ -17,12 +17,19 @@ export const config = {
     // CORS_ORIGINS takes priority — comma-separated list of allowed origins.
     // Example: CORS_ORIGINS=https://admin.kungabasics.com,https://app.kungabasics.com
     // Falls back to FRONTEND_URL + ADMIN_URL for backwards compatibility.
+    // In development, all localhost ports are allowed automatically.
     origins: process.env.CORS_ORIGINS
       ? process.env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
-      : [
-          process.env.FRONTEND_URL ?? 'http://localhost:5173',
-          process.env.ADMIN_URL   ?? 'http://localhost:5174',
-        ],
+      : process.env.NODE_ENV !== 'production'
+        // In development allow any localhost port (Vite picks a free port each run)
+        ? [...Array(20).keys()].map(i => `http://localhost:${5170 + i}`).concat([
+            process.env.FRONTEND_URL ?? 'http://localhost:5173',
+            process.env.ADMIN_URL   ?? 'http://localhost:5174',
+          ])
+        : [
+            process.env.FRONTEND_URL ?? 'http://localhost:5173',
+            process.env.ADMIN_URL   ?? 'http://localhost:5174',
+          ],
   },
 
   google: {
@@ -87,7 +94,8 @@ export const config = {
 
   app: {
     deepLinkScheme: 'kungabasics',
-    portalUrl:      process.env.PORTAL_URL ?? 'https://admin.kungabasics.com',
+    portalUrl:      process.env.PORTAL_URL      ?? 'https://admin.kungabasics.com',
+    userPortalUrl:  process.env.USER_PORTAL_URL ?? 'https://app.kungabasics.com',
     publicSiteUrl:  process.env.PUBLIC_SITE_URL ?? 'https://kungabasics.com',
     askGadMonthlyLimit: 2,
     streamUrlExpirySecs: 7200, // 2 hours
