@@ -198,6 +198,11 @@ export async function usersRoutes(server: FastifyInstance) {
     preHandler: [requirePermission('MANAGE_USERS')],
   }, UserController.sendEmail);
 
+  server.post('/:id/reset-password', {
+    schema: { tags: ['Users'], summary: '[Admin] Send password reset email to a user', security: [{ bearerAuth: [] }] },
+    preHandler: [requirePermission('MANAGE_USERS')],
+  }, UserController.adminResetPassword);
+
   server.get('/export/csv', {
     schema: { tags: ['Users'], summary: '[Admin] Export users as CSV', security: [{ bearerAuth: [] }] },
     preHandler: [requirePermission('VIEW_USERS')],

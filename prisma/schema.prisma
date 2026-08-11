@@ -50,6 +50,8 @@ model User {
   journalEntries            JournalEntry[]
   announcementDismissals    UserAnnouncementDismissal[]
   paymentTransactions       PaymentTransaction[]
+  manualPayments            ManualPayment[]
+  reviewedManualPayments    ManualPayment[]       @relation("ManualPaymentReviewer")
   donations                 Donation[]
   scholarshipGrants         ScholarshipGrant[]
   questionCredits           QuestionCredit[]
@@ -209,6 +211,44 @@ model PaymentTransaction {
   @@index([txRef])
   @@index([initiatedAt])
   @@map("payment_transactions")
+}
+
+// ─── MANUAL PAYMENTS ──────────────────────────────────────────────────────────
+// Offline / bank-transfer payments submitted by users for admin review.
+// Completely isolated from gateway flows — approval triggers the same
+// subscription-activation logic used by Flutterwave / Stripe.
+
+model ManualPayment {
+  id              String              @id @default(cuid())
+  txRef           String              @unique // MNL-YYYYMMDD-XXXXXX (auto-generated)
+  userId          String
+  plan            String              // "gold_monthly" | "gold_quarterly" | "gold_annual" | "premium_*"
+  amount          Float
+  currency        String              @default("RWF")
+  receiptUrl      String?             // public URL of uploaded receipt image/PDF
+  receiptKey      String?             // MinIO object key (for deletion)
+  notes           String?             // user's transfer description / bank reference
+  status          ManualPaymentStatus @default(PENDING)
+  reviewedBy      String?             // admin user id who approved/rejected
+  adminNotes      String?             // internal admin notes (not shown to user)
+  rejectionReason String?             // shown to user on rejection
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  resolvedAt      DateTime?
+
+  user     User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("ManualPaymentReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("manual_payments")
+}
+
+enum ManualPaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 // ─── QUESTION CREDITS ─────────────────────────────────────────────────────────

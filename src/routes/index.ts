@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAuth, requirePermission, requireSubscription } from '../middleware/auth.js';
 import { ModuleController } from '../controllers/module.controller.js';
+import { ManualPaymentController } from '../controllers/manual-payment.controller.js';
 import { VideoController, SubscriptionController, PaymentController, DonationController, AskGadController, AnnouncementController, AdminController, AnalyticsController, SiteAnalyticsController, PricingController } from '../controllers/index.js';
 import { NotificationService } from '../services/admin.service.js';
 
@@ -73,6 +74,22 @@ export async function paymentsRoutes(server: FastifyInstance) {
   server.get('/my-history', { schema: { tags: ['Payments'], summary: 'Get my payment history', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, PaymentController.myHistory);
   server.get('/receipt/:id', { schema: { tags: ['Payments'], summary: 'Download receipt PDF', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, PaymentController.receiptPdf);
   server.get('/history/export', { schema: { tags: ['Payments'], summary: 'Export full payment history as PDF', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, PaymentController.exportHistory);
+}
+
+export async function manualPaymentsRoutes(server: FastifyInstance) {
+  // Plan options (public, no auth needed — shown on pricing/upgrade page)
+  server.get('/plans', { schema: { tags: ['Manual Payments'], summary: 'List available plans' } }, ManualPaymentController.planOptions);
+
+  // User routes
+  server.post('/',    { schema: { tags: ['Manual Payments'], summary: 'Submit a manual payment receipt', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, ManualPaymentController.submit);
+  server.get('/my',   { schema: { tags: ['Manual Payments'], summary: 'Get my manual payment submissions', security: [{ bearerAuth: [] }] }, preHandler: [requireAuth] }, ManualPaymentController.myPayments);
+
+  // Admin routes
+  server.get('/pending-count', { schema: { tags: ['Manual Payments'], summary: '[Admin] Count of pending submissions', security: [{ bearerAuth: [] }] }, preHandler: [requirePermission('MANAGE_SUBSCRIPTIONS')] }, ManualPaymentController.pendingCount);
+  server.get('/',              { schema: { tags: ['Manual Payments'], summary: '[Admin] List all manual payments', security: [{ bearerAuth: [] }] }, preHandler: [requirePermission('MANAGE_SUBSCRIPTIONS', 'VIEW_SUBSCRIPTIONS')] }, ManualPaymentController.list);
+  server.get('/:id',           { schema: { tags: ['Manual Payments'], summary: '[Admin] Get single manual payment', security: [{ bearerAuth: [] }] }, preHandler: [requirePermission('MANAGE_SUBSCRIPTIONS', 'VIEW_SUBSCRIPTIONS')] }, ManualPaymentController.getById);
+  server.post('/:id/approve',  { schema: { tags: ['Manual Payments'], summary: '[Admin] Approve manual payment', security: [{ bearerAuth: [] }], body: { type: 'object', properties: { adminNotes: { type: 'string' } } } }, preHandler: [requirePermission('MANAGE_SUBSCRIPTIONS')] }, ManualPaymentController.approve);
+  server.post('/:id/reject',   { schema: { tags: ['Manual Payments'], summary: '[Admin] Reject manual payment', security: [{ bearerAuth: [] }], body: { type: 'object', required: ['reason'], properties: { reason: { type: 'string' }, adminNotes: { type: 'string' } } } }, preHandler: [requirePermission('MANAGE_SUBSCRIPTIONS')] }, ManualPaymentController.reject);
 }
 
 export async function donationsRoutes(server: FastifyInstance) {

@@ -1,6 +1,8 @@
-import type { FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyRequest, FastifyReply, FastifyInstance } from 'fastify';
 import { UserService, EmailService } from '../services/user.service.js';
 import { UpdateProfileDto, ChildProfileDto, ChangePasswordDto, UserListQueryDto } from '../models/user.model.js';
+import { AuthService } from '../services/auth.service.js';
+import { prisma } from '../lib/prisma.js';
 
 export const UserController = {
   async getMe(req: FastifyRequest, reply: FastifyReply) {
@@ -62,5 +64,15 @@ export const UserController = {
     reply.header('Content-Type', 'text/csv');
     reply.header('Content-Disposition', 'attachment; filename="kunga-users.csv"');
     return reply.send(csv);
+  },
+
+  async adminResetPassword(req: FastifyRequest, reply: FastifyReply) {
+    const { id } = req.params as { id: string };
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) throw Object.assign(new Error('User not found'), { status: 404 });
+    // Re-use the existing forgotPassword flow — generates a reset token and
+    // sends the email to the user's address.
+    const result = await AuthService.forgotPassword(req.server as FastifyInstance, user.email);
+    return reply.send({ message: `Password reset email sent to ${user.email}` });
   },
 };

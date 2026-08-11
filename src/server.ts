@@ -14,7 +14,7 @@ import { authRoutes } from './routes/auth.route.js';
 import { usersRoutes } from './routes/users.route.js';
 import {
   modulesRoutes, videosRoutes,
-  subscriptionsRoutes, paymentsRoutes,
+  subscriptionsRoutes, paymentsRoutes, manualPaymentsRoutes,
   donationsRoutes, askGadRoutes,
   announcementsRoutes, adminRoutes, analyticsRoutes,
 } from './routes/index.js';
@@ -280,7 +280,8 @@ Preview modules (\`isPreview: true\`) are always accessible.
   await server.register(preferencesRoutes,   { prefix: `${API}/preferences` });
   await server.register(journalRoutes,       { prefix: `${API}/journal` });
   await server.register(subscriptionsRoutes, { prefix: `${API}/subscriptions` });
-  await server.register(paymentsRoutes,      { prefix: `${API}/payments` });
+  await server.register(paymentsRoutes,       { prefix: `${API}/payments` });
+  await server.register(manualPaymentsRoutes, { prefix: `${API}/manual-payments` });
   await server.register(donationsRoutes,     { prefix: `${API}/donations` });
   await server.register(askGadRoutes,        { prefix: `${API}/ask-gad` });
   await server.register(announcementsRoutes, { prefix: `${API}/announcements` });
