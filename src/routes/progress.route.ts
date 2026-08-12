@@ -11,10 +11,17 @@ export async function progressRoutes(server: FastifyInstance) {
     preHandler: [requireAuth],
   }, async (req, reply) => {
     const user = (req as any).currentUser;
-    const progress = await prisma.userProgress.findMany({
+    const rows = await prisma.userProgress.findMany({
       where: { userId: user.id },
       include: { module: { select: { code: true, title: true, group: { select: { name: true } } } } },
+      orderBy: { watchedPercent: 'desc' },
     });
+    // Deduplicate — keep the best (highest watchedPercent) row per module
+    const seen = new Map<string, typeof rows[0]>();
+    for (const row of rows) {
+      if (!seen.has(row.moduleId)) seen.set(row.moduleId, row);
+    }
+    const progress = Array.from(seen.values());
     return reply.send({ progress });
   });
 

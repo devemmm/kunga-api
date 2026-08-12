@@ -167,7 +167,11 @@ export const ModuleService = {
     if (!hasSubscription && !mod.isPreview) {
       throw Object.assign(new Error('Subscription required'), { status: 402, locked: true });
     }
-    return { module: lang === 'en' ? mod : localizeModule(mod, lang) };
+    const userProgress = (mod.progress as any[])?.[0];
+    const progressPercent = Math.round(userProgress?.watchedPercent ?? 0);
+    const isCompleted     = userProgress?.completed ?? false;
+    const localized = lang === 'en' ? mod : localizeModule(mod, lang);
+    return { module: { ...localized, progressPercent, isCompleted } };
   },
 
   async createModule(data: CreateModuleInput) {

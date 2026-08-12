@@ -148,6 +148,29 @@ export async function adminRoutes(server: FastifyInstance) {
   // Pricing config
   server.get('/pricing', { schema: { tags: ['Admin'], summary: '[Admin] Get all subscription pricing config', security: [{ bearerAuth: [] }] }, preHandler: [requirePermission('VIEW_DASHBOARD')] }, PricingController.getAll);
   server.patch('/pricing', { schema: { tags: ['Admin'], summary: '[Admin] Update a pricing config value', security: [{ bearerAuth: [] }] }, preHandler: [requirePermission('MANAGE_PRICING')] }, PricingController.set);
+
+  // SMTP test
+  server.post('/test-email', {
+    schema: {
+      tags: ['Admin'], summary: '[Admin] Send a test email to verify SMTP configuration', security: [{ bearerAuth: [] }],
+      body: { type: 'object', required: ['to'], properties: { to: { type: 'string', format: 'email' } } },
+    },
+    preHandler: [requirePermission('VIEW_DASHBOARD')],
+  }, async (req: any, reply: any) => {
+    const { to } = req.body as { to: string };
+    const { sendAdminEmail } = await import('../lib/email.js');
+    try {
+      await sendAdminEmail(
+        to,
+        'Admin',
+        '✅ Kunga Basics SMTP Test',
+        `This is a test email sent from the Kunga Basics Admin Portal.\n\nIf you received this, your SMTP configuration is working correctly.\n\nSent at: ${new Date().toISOString()}`,
+      );
+      return reply.send({ success: true, message: `Test email sent to ${to}` });
+    } catch (err: any) {
+      return reply.status(500).send({ error: `Failed to send email: ${err?.message ?? 'Unknown error'}` });
+    }
+  });
 }
 
 export async function analyticsRoutes(server: FastifyInstance) {

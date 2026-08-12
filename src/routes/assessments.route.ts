@@ -64,6 +64,50 @@ export async function assessmentsRoutes(server: FastifyInstance) {
     return reply.status(201).send({ assessment });
   });
 
+  // ── Public / guest: no auth required ─────────────────────────────────────
+  server.post('/guest', {
+    schema: { tags: ['Assessments'], summary: 'Submit a guest child assessment (no auth required)' },
+  }, async (req, reply) => {
+    const body = req.body as any;
+
+    const assessment = await prisma.childAssessment.create({
+      data: {
+        userId:             null,
+        childName:          body.childName          ?? 'Guest',
+        dateOfBirth:        body.dateOfBirth        ?? null,
+        gender:             body.gender             ?? null,
+        country:            body.country            ?? null,
+        parentName:         body.parentName         ?? null,
+        parentEmail:        body.parentEmail        ?? null,
+        parentPhone:        body.parentPhone        ?? null,
+        answers:            body.answers            ?? {},
+        domainScores:       body.domainScores       ?? {},
+        recommendedProgram: body.recommendedProgram ?? null,
+        selectedProgram:    body.selectedProgram    ?? null,
+        strengths:          body.strengths          ?? [],
+        areasToSupport:     body.areasToSupport     ?? [],
+        videoCount:         body.videoCount         ?? 0,
+        photoCount:         body.photoCount         ?? 0,
+        reportCount:        body.reportCount        ?? 0,
+      },
+    });
+
+    const recipientEmail = (body.parentEmail ?? '').trim();
+    if (recipientEmail) {
+      sendAssessmentReportEmail(
+        recipientEmail,
+        body.parentName ?? '',
+        assessment.childName,
+        assessment.domainScores as Record<string, number>,
+        assessment.recommendedProgram,
+        assessment.strengths,
+        assessment.areasToSupport,
+      ).catch(() => {});
+    }
+
+    return reply.status(201).send({ assessment });
+  });
+
   // ── Admin: view all parents' assessment history ────────────────────────────
   server.get('/admin/all', {
     schema: { tags: ['Assessments'], summary: '[Admin] List all child assessments', security: [{ bearerAuth: [] }] },

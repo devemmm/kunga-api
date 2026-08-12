@@ -100,7 +100,7 @@ model ChildProfile {
 
 model ChildAssessment {
   id                 String   @id @default(cuid())
-  userId             String
+  userId             String?
   childName          String
   dateOfBirth        String?
   gender             String?
@@ -119,7 +119,7 @@ model ChildAssessment {
   reportCount        Int      @default(0)
   createdAt          DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("child_assessments")
 }
@@ -142,6 +142,7 @@ model UserPreferences {
   textSize             String   @default("medium") // "small"|"medium"|"large"
   language             String   @default("en")
   cookieConsent        Boolean?
+  freeBookDownloaded   Boolean  @default(false)
   updatedAt            DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
