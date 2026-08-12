@@ -301,6 +301,7 @@ model Module {
   description              String?
   whatToExpect             String?
   isPreview                Boolean       @default(false)
+  requiresSubscription     Boolean       @default(true)
   status                   ContentStatus @default(DRAFT)
   sortOrder                Int           @default(0)
   createdAt                DateTime      @default(now())

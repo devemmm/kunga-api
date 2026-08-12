@@ -82,10 +82,11 @@ export const ModuleService = {
 
         const localizedMod = localizeModule({ ...mod, group }, lang);
 
-        if (!hasSubscription && !mod.isPreview) {
-          return { ...localizedMod, emoji, videos: [], locked: true, progressPercent, isCompleted, videosCount: 0, resourcesCount: 0, totalDurationMin: 0 };
+        const requiresSub = (mod as any).requiresSubscription ?? true;
+        if (!hasSubscription && requiresSub) {
+          return { ...localizedMod, emoji, videos: [], locked: true, requiresSubscription: true, progressPercent, isCompleted, videosCount: 0, resourcesCount: 0, totalDurationMin: 0 };
         }
-        return { ...localizedMod, emoji, locked: false, progressPercent, isCompleted, videosCount, resourcesCount, totalDurationMin };
+        return { ...localizedMod, emoji, locked: false, requiresSubscription: requiresSub, progressPercent, isCompleted, videosCount, resourcesCount, totalDurationMin };
       }),
     }));
   },
