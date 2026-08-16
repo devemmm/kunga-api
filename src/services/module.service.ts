@@ -82,7 +82,8 @@ export const ModuleService = {
 
         const localizedMod = localizeModule({ ...mod, group }, lang);
 
-        const requiresSub = (mod as any).requiresSubscription ?? true;
+        // A module is free if isPreview=true (admin "FREE" toggle) OR requiresSubscription=false
+        const requiresSub = (mod as any).requiresSubscription !== false && !mod.isPreview;
         if (!hasSubscription && requiresSub) {
           // Still surface preview-clip videos so free/cancelled users can watch them
           const previewClips = mod.videos.filter(v => (v as any).isPreviewClip);
@@ -167,7 +168,8 @@ export const ModuleService = {
       },
     });
     if (!mod) throw Object.assign(new Error('Module not found'), { status: 404 });
-    const requiresSub = (mod as any).requiresSubscription ?? true;
+    // Free if isPreview=true (admin "FREE" toggle) OR requiresSubscription=false
+    const requiresSub = (mod as any).requiresSubscription !== false && !mod.isPreview;
     const userProgress = (mod.progress as any[])?.[0];
     const progressPercent = Math.round(userProgress?.watchedPercent ?? 0);
     const isCompleted     = userProgress?.completed ?? false;
@@ -264,9 +266,9 @@ export const ModuleService = {
 
     if (isAdmin || hasSubscription) return { resources };
 
-    // Check if the parent module itself is free — if so, all resources are accessible
-    const mod = await prisma.module.findUnique({ where: { id: moduleId }, select: { requiresSubscription: true } as any });
-    const moduleRequiresSub = (mod as any)?.requiresSubscription ?? true;
+    // Check if the parent module itself is free (isPreview=true OR requiresSubscription=false)
+    const mod = await prisma.module.findUnique({ where: { id: moduleId }, select: { requiresSubscription: true, isPreview: true } as any });
+    const moduleRequiresSub = (mod as any)?.requiresSubscription !== false && !(mod as any)?.isPreview;
     if (!moduleRequiresSub) return { resources };
 
     // Paid module — free/cancelled users only get resources flagged as a free preview
