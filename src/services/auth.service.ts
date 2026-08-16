@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { OAuth2Client } from 'google-auth-library';
+import appleSignin from 'apple-signin-auth';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { redis } from '../lib/redis.js';
@@ -293,6 +294,45 @@ export const AuthService = {
     const childProfile = await prisma.childProfile.findUnique({ where: { userId: user.id } });
     const isNewUser = !childProfile;
     return { user, isNewUser, childProfile };
+  },
+
+  async appleAuth(data: { identityToken: string; fullName?: string | null }) {
+    let applePayload: any;
+    try {
+      applePayload = await appleSignin.verifyIdToken(data.identityToken, {
+        audience: 'com.kungabasics.app',
+        ignoreExpiration: false,
+      });
+    } catch {
+      throw Object.assign(new Error('Invalid Apple identity token'), { status: 401 });
+    }
+
+    const { sub: appleId, email } = applePayload;
+    if (!appleId) throw Object.assign(new Error('Apple token missing sub'), { status: 400 });
+
+    // Apple only sends email on the very first sign-in; after that email is null
+    const resolvedEmail = email ?? null;
+    const resolvedName  = data.fullName?.trim() || null;
+
+    // Look up by appleId first, then fall back to email (if provided)
+    let user = await prisma.user.findFirst({ where: { appleId } }).catch(() => null);
+    if (!user && resolvedEmail) {
+      user = await prisma.user.findUnique({ where: { email: resolvedEmail } }).catch(() => null);
+    }
+
+    if (!user) {
+      if (!resolvedEmail) throw Object.assign(new Error('Apple did not provide email — cannot create account'), { status: 400 });
+      user = await prisma.user.create({
+        data: { email: resolvedEmail, name: resolvedName ?? resolvedEmail.split('@')[0], appleId, preferences: { create: {} } },
+      });
+    } else if (!user.appleId) {
+      user = await prisma.user.update({ where: { id: user.id }, data: { appleId, lastLoginAt: new Date() } });
+    } else {
+      user = await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    }
+
+    const childProfile = await prisma.childProfile.findUnique({ where: { userId: user.id } });
+    return { user, isNewUser: !childProfile, childProfile };
   },
 
   async forgotPassword(server: FastifyInstance, email: string) {

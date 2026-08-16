@@ -11,6 +11,7 @@ export const CreateModuleDto = z.object({
   description: z.string().optional(),
   whatToExpect: z.string().optional(),
   isPreview: z.boolean().default(false),
+  requiresSubscription: z.boolean().default(true),
   status: z.enum(['DRAFT', 'PUBLISHED']).default('DRAFT'),
   sortOrder: z.number().int().min(0).default(0),
   // i18n translation maps — keys are language codes (fr, rw, sw)

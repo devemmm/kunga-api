@@ -277,7 +277,7 @@ User
   ├─ ChildProfile       childName, dateOfBirth, ageMonths, challenges[]
   ├─ ChildAssessment[]  childName, answers, domainScores, recommendedProgram, strengths[], areasToSupport[]
   ├─ Subscription       plan, status, platform, periodEnd, questionAddonUsd
-  ├─ UserPreferences    notification toggles, theme, language, cookieConsent
+  ├─ UserPreferences    notification toggles, theme, language, cookieConsent, freeBookDownloaded
   ├─ QuestionCredit     monthKey, credits, status (PENDING|ACTIVE|FAILED)
   ├─ AskGadSubmission   questionText, videoR2Key, responseText, status
   ├─ MilestoneReport    weekStart, scores (1-5), notes
@@ -554,6 +554,33 @@ Exposed in the admin portal under **Assessments** (sidebar, `VIEW_ASSESSMENTS`) 
 | `POST /donations/initiate` | Donation (public) |
 | `GET /donations/donor-wall` | Public donor wall |
 | `POST /webhooks/*` | Payment webhooks |
+
+---
+
+## Key Route Notes
+
+### Profile photo upload
+
+```
+POST /auth/avatar          multipart/form-data  (field name: avatar)
+```
+
+Uploads to MinIO and updates `user.avatarUrl`. The correct route is `/auth/avatar` — **not** `/auth/me/photo` (that route does not exist).
+
+To remove the avatar, send:
+```
+PATCH /auth/me   { "avatarUrl": null }
+```
+
+### Preferences — `freeBookDownloaded`
+
+`UserPreferences` has a `freeBookDownloaded Boolean @default(false)` field. The web portal reads this via `GET /preferences` on session start; once the user clicks "I've already downloaded it", the portal sends `PATCH /preferences { freeBookDownloaded: true }` and the free-book modal never appears again across any device.
+
+---
+
+## Production Dependencies Warning
+
+`dotenv` **must** be in `dependencies` (not `devDependencies`). Docker's production build runs `npm prune --production`, which strips `devDependencies` — if `dotenv` ends up there, the container fails to start with `Cannot find module 'dotenv/config'`.
 
 ---
 

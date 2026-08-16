@@ -160,6 +160,20 @@ export async function usersRoutes(server: FastifyInstance) {
     return reply.send({ notifications, total: notifications.length });
   });
 
+  server.get('/me/activity', {
+    schema: { tags: ['Users'], summary: 'Get my recent activity log', security: [{ bearerAuth: [] }] },
+    preHandler: [requireAuth],
+  }, async (req, reply) => {
+    const user = (req as any).currentUser;
+    const logs = await prisma.activityLog.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+      select: { id: true, action: true, details: true, createdAt: true },
+    });
+    return reply.send({ logs });
+  });
+
   server.get('/me/data-export', {
     schema: { tags: ['Users'], summary: 'GDPR Article 20 — export all personal data as JSON', security: [{ bearerAuth: [] }] },
     preHandler: [requireAuth],

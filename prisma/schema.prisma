@@ -18,6 +18,7 @@ model User {
   email              String    @unique
   passwordHash       String?
   googleId           String?   @unique
+  appleId            String?   @unique
   name               String
   avatarUrl          String?
   role               UserRole  @default(PARENT)
@@ -100,7 +101,7 @@ model ChildProfile {
 
 model ChildAssessment {
   id                 String   @id @default(cuid())
-  userId             String
+  userId             String?
   childName          String
   dateOfBirth        String?
   gender             String?
@@ -119,7 +120,7 @@ model ChildAssessment {
   reportCount        Int      @default(0)
   createdAt          DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("child_assessments")
 }
@@ -142,6 +143,7 @@ model UserPreferences {
   textSize             String   @default("medium") // "small"|"medium"|"large"
   language             String   @default("en")
   cookieConsent        Boolean?
+  freeBookDownloaded   Boolean  @default(false)
   updatedAt            DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -300,6 +302,7 @@ model Module {
   description              String?
   whatToExpect             String?
   isPreview                Boolean       @default(false)
+  requiresSubscription     Boolean       @default(true)
   status                   ContentStatus @default(DRAFT)
   sortOrder                Int           @default(0)
   createdAt                DateTime      @default(now())

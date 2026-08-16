@@ -75,6 +75,20 @@ export async function authRoutes(server: FastifyInstance) {
     preHandler: [countrySignin],
   }, AuthController.googleAuth);
 
+  server.post('/apple', {
+    schema: {
+      tags: ['Auth'], summary: 'Sign in with Apple — exchange Apple identity token for app JWT',
+      body: {
+        type: 'object', required: ['identityToken'],
+        properties: {
+          identityToken: { type: 'string' },
+          fullName:      { type: 'string', nullable: true },
+        },
+      },
+    },
+    preHandler: [countrySignin],
+  }, AuthController.appleAuth);
+
   server.post('/refresh', {
     schema: {
       tags: ['Auth'], summary: 'Refresh access token',

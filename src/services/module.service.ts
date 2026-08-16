@@ -82,10 +82,14 @@ export const ModuleService = {
 
         const localizedMod = localizeModule({ ...mod, group }, lang);
 
-        if (!hasSubscription && !mod.isPreview) {
-          return { ...localizedMod, emoji, videos: [], locked: true, progressPercent, isCompleted, videosCount: 0, resourcesCount: 0, totalDurationMin: 0 };
+        // A module is free if isPreview=true (admin "FREE" toggle) OR requiresSubscription=false
+        const requiresSub = (mod as any).requiresSubscription !== false && !mod.isPreview;
+        if (!hasSubscription && requiresSub) {
+          // Still surface preview-clip videos so free/cancelled users can watch them
+          const previewClips = mod.videos.filter(v => (v as any).isPreviewClip);
+          return { ...localizedMod, emoji, videos: previewClips, locked: true, requiresSubscription: true, progressPercent, isCompleted, videosCount: 0, resourcesCount: 0, totalDurationMin: 0 };
         }
-        return { ...localizedMod, emoji, locked: false, progressPercent, isCompleted, videosCount, resourcesCount, totalDurationMin };
+        return { ...localizedMod, emoji, locked: false, requiresSubscription: requiresSub, progressPercent, isCompleted, videosCount, resourcesCount, totalDurationMin };
       }),
     }));
   },
@@ -164,10 +168,19 @@ export const ModuleService = {
       },
     });
     if (!mod) throw Object.assign(new Error('Module not found'), { status: 404 });
-    if (!hasSubscription && !mod.isPreview) {
-      throw Object.assign(new Error('Subscription required'), { status: 402, locked: true });
+    // Free if isPreview=true (admin "FREE" toggle) OR requiresSubscription=false
+    const requiresSub = (mod as any).requiresSubscription !== false && !mod.isPreview;
+    const userProgress = (mod.progress as any[])?.[0];
+    const progressPercent = Math.round(userProgress?.watchedPercent ?? 0);
+    const isCompleted     = userProgress?.completed ?? false;
+    const localized = lang === 'en' ? mod : localizeModule(mod, lang);
+
+    if (!hasSubscription && requiresSub) {
+      // Return module detail but restrict videos to preview clips only
+      const previewVideos = (mod.videos as any[]).filter(v => v.isPreviewClip);
+      return { module: { ...localized, videos: previewVideos, locked: true, requiresSubscription: true, progressPercent, isCompleted } };
     }
-    return { module: lang === 'en' ? mod : localizeModule(mod, lang) };
+    return { module: { ...localized, locked: false, requiresSubscription: requiresSub, progressPercent, isCompleted } };
   },
 
   async createModule(data: CreateModuleInput) {
@@ -253,7 +266,12 @@ export const ModuleService = {
 
     if (isAdmin || hasSubscription) return { resources };
 
-    // Free users only get the file/link for resources flagged as a free preview
+    // Check if the parent module itself is free (isPreview=true OR requiresSubscription=false)
+    const mod = await prisma.module.findUnique({ where: { id: moduleId }, select: { requiresSubscription: true, isPreview: true } as any });
+    const moduleRequiresSub = (mod as any)?.requiresSubscription !== false && !(mod as any)?.isPreview;
+    if (!moduleRequiresSub) return { resources };
+
+    // Paid module — free/cancelled users only get resources flagged as a free preview
     return {
       resources: resources.map((r: any) =>
         r.isPreviewClip ? r : { ...r, url: null, fileSize: null, locked: true }
