@@ -18,6 +18,7 @@ model User {
   email              String    @unique
   passwordHash       String?
   googleId           String?   @unique
+  appleId            String?   @unique
   name               String
   avatarUrl          String?
   role               UserRole  @default(PARENT)

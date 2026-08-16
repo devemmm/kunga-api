@@ -125,6 +125,26 @@ export const AuthController = {
     });
   },
 
+  async appleAuth(req: FastifyRequest, reply: FastifyReply) {
+    const body = req.body as { identityToken: string; fullName?: string | null };
+    if (!body?.identityToken) throw Object.assign(new Error('identityToken required'), { status: 400 });
+    const { user, isNewUser, childProfile } = await AuthService.appleAuth(body);
+    const tokens = generateTokens(req.server as FastifyInstance, user.id, user.role);
+    return reply.send({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatarUrl: user.avatarUrl,
+        role: user.role,
+        subscriptionStatus: user.subscriptionStatus,
+        isNewUser,
+        childProfile: childProfile ?? null,
+      },
+      ...tokens,
+    });
+  },
+
   async refresh(req: FastifyRequest, reply: FastifyReply) {
     const { refreshToken } = RefreshTokenDto.parse(req.body);
     const { tokens } = await AuthService.refreshTokens(req.server as FastifyInstance, refreshToken);
