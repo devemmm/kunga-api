@@ -189,6 +189,13 @@ export const ModuleService = {
   },
 
   async updateModule(id: string, data: UpdateModuleInput) {
+    // When marking a module as free preview, also clear requiresSubscription
+    // so both flags stay in sync and any lock-check logic works correctly.
+    if ((data as any).isPreview === true) {
+      (data as any).requiresSubscription = false;
+    } else if ((data as any).isPreview === false) {
+      (data as any).requiresSubscription = true;
+    }
     const mod = await prisma.module.update({ where: { id }, data });
     return { module: mod };
   },
