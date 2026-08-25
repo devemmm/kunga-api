@@ -69,29 +69,42 @@ export const UserService = {
   },
 
   async deleteAccount(userId: string) {
-    // GDPR Article 17 — anonymise all PII on the user row
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        email:        `deleted_${userId}@removed.local`,
-        name:         'Deleted User',
-        googleId:     null,
-        avatarUrl:    null,
-        pushToken:    null,
-        passwordHash: null,
-      },
+    // GDPR Article 17 — Right to Erasure.
+    // Hard-delete the user and all associated personal data.
+    //
+    // Most child tables have onDelete: Cascade in the schema, so deleting
+    // the user row will automatically remove:
+    //   child_profiles, user_preferences, subscriptions, payment_transactions,
+    //   manual_payments, question_credits, user_progress, video_bookmarks,
+    //   video_notes, routine_entries, milestone_reports, module_feedback,
+    //   ask_gad_submissions, journal_entries, user_announcement_dismissals,
+    //   user_roles, user_permissions
+    //
+    // Two tables need manual handling before the delete:
+    //   - donations.userId is nullable (no cascade) → set to null so donation
+    //     financial records are preserved for accounting purposes.
+    //   - visitor_sessions.userId is SetNull (handled by DB automatically).
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Detach donations — preserve payment records but remove personal link
+      await tx.donation.updateMany({
+        where: { userId },
+        data:  { userId: null },
+      });
+
+      // 2. Log the deletion before the user row disappears
+      await tx.activityLog.create({
+        data: {
+          action:  'account.deleted',
+          details: `GDPR Article 17 — hard delete requested by user ${userId} at ${new Date().toISOString()}`,
+        },
+      });
+
+      // 3. Delete the user — DB cascades handle all child rows automatically
+      await tx.user.delete({ where: { id: userId } });
     });
 
-    // Record the deletion timestamp in the audit log
-    await prisma.activityLog.create({
-      data: {
-        userId,
-        action:  'account.deleted',
-        details: `GDPR Article 17 — account anonymised at ${new Date().toISOString()}`,
-      },
-    });
-
-    return { message: 'Account deleted. Your data has been anonymised.' };
+    return { message: 'Your account and all personal data have been permanently deleted.' };
   },
 
   async listUsers(query: UserListQuery) {
