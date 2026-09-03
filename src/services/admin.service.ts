@@ -198,6 +198,109 @@ export const AdminService = {
     }));
   },
 
+  async getRevenueStats(from?: string, to?: string) {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const dateFrom = from ? new Date(from) : undefined;
+    const dateTo   = to   ? new Date(to)   : undefined;
+    const filterRange = dateFrom || dateTo
+      ? { gte: dateFrom, lte: dateTo ?? now }
+      : undefined;
+    const monthRange = { gte: startOfMonth, lte: now };
+
+    // Resolved manual payments
+    const [
+      allTimeManual, periodManual, monthManual,
+      allTimeTx,     periodTx,     monthTx,
+    ] = await Promise.all([
+      prisma.manualPayment.aggregate({ where: { status: 'APPROVED' }, _sum: { amount: true } }),
+      prisma.manualPayment.aggregate({ where: { status: 'APPROVED', ...(filterRange ? { resolvedAt: filterRange } : {}) }, _sum: { amount: true } }),
+      prisma.manualPayment.aggregate({ where: { status: 'APPROVED', resolvedAt: monthRange }, _sum: { amount: true } }),
+      prisma.paymentTransaction.aggregate({ where: { status: 'SUCCESS' }, _sum: { amount: true } }),
+      prisma.paymentTransaction.aggregate({ where: { status: 'SUCCESS', ...(filterRange ? { resolvedAt: filterRange } : {}) }, _sum: { amount: true } }),
+      prisma.paymentTransaction.aggregate({ where: { status: 'SUCCESS', resolvedAt: monthRange }, _sum: { amount: true } }),
+    ]);
+
+    // By platform breakdown for the selected period
+    const [manualByPlatform, txByPlatform] = await Promise.all([
+      prisma.manualPayment.groupBy({
+        by: ['currency'],
+        where: { status: 'APPROVED', ...(filterRange ? { resolvedAt: filterRange } : {}) },
+        _sum: { amount: true }, _count: true,
+      }),
+      prisma.paymentTransaction.groupBy({
+        by: ['platform', 'currency'],
+        where: { status: 'SUCCESS', ...(filterRange ? { resolvedAt: filterRange } : {}) },
+        _sum: { amount: true }, _count: true,
+      }),
+    ]);
+
+    // Individual transactions for the table
+    const [manualList, txList] = await Promise.all([
+      prisma.manualPayment.findMany({
+        where: { status: 'APPROVED', ...(filterRange ? { resolvedAt: filterRange } : {}) },
+        orderBy: { resolvedAt: 'desc' },
+        take: 50,
+        include: { user: { select: { name: true, email: true } } },
+      }),
+      prisma.paymentTransaction.findMany({
+        where: { status: 'SUCCESS', ...(filterRange ? { resolvedAt: filterRange } : {}) },
+        orderBy: { resolvedAt: 'desc' },
+        take: 50,
+        include: { user: { select: { name: true, email: true } } },
+      }),
+    ]);
+
+    const sum = (v?: number | null) => v ?? 0;
+
+    const totalAllTime = sum(allTimeManual._sum.amount) + sum(allTimeTx._sum.amount);
+    const totalPeriod  = sum(periodManual._sum.amount)  + sum(periodTx._sum.amount);
+    const totalMonth   = sum(monthManual._sum.amount)   + sum(monthTx._sum.amount);
+
+    // Merge platform breakdown
+    const platformMap: Record<string, { amount: number; count: number; currency: string }> = {};
+    for (const r of txByPlatform) {
+      const key = r.platform;
+      if (!platformMap[key]) platformMap[key] = { amount: 0, count: 0, currency: r.currency ?? 'USD' };
+      platformMap[key].amount += sum(r._sum.amount);
+      platformMap[key].count  += r._count;
+    }
+    for (const r of manualByPlatform) {
+      const key = 'manual';
+      if (!platformMap[key]) platformMap[key] = { amount: 0, count: 0, currency: r.currency ?? 'USD' };
+      platformMap[key].amount += sum(r._sum.amount);
+      platformMap[key].count  += r._count;
+    }
+
+    const byPlatform = Object.entries(platformMap).map(([platform, v]) => ({ platform, ...v }));
+
+    const transactions = [
+      ...manualList.map(m => ({
+        id: m.id, type: 'manual' as const,
+        platform: 'manual', plan: m.plan,
+        amount: m.amount, currency: m.currency,
+        status: m.status, date: m.resolvedAt ?? m.createdAt,
+        userName: m.user?.name ?? null, userEmail: m.user?.email ?? null,
+      })),
+      ...txList.map(t => ({
+        id: t.id, type: 'transaction' as const,
+        platform: t.platform, plan: t.plan ?? null,
+        amount: t.amount ?? 0, currency: t.currency ?? 'USD',
+        status: t.status, date: t.resolvedAt ?? t.initiatedAt,
+        userName: (t as any).user?.name ?? null, userEmail: (t as any).user?.email ?? null,
+      })),
+    ].sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime());
+
+    return {
+      totalAllTime,
+      totalPeriod,
+      totalMonth,
+      byPlatform,
+      transactions,
+      period: { from: dateFrom?.toISOString() ?? null, to: (dateTo ?? now).toISOString() },
+    };
+  },
+
   async getSignupTrend(weeks = 8) {
     const trend = [];
     const now = new Date();

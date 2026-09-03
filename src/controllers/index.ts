@@ -375,6 +375,11 @@ export const AdminController = {
     const stats = await AdminService.getPaymentStats();
     return reply.send({ stats });
   },
+
+  async getRevenueStats(req: FastifyRequest, reply: FastifyReply) {
+    const { from, to } = (req.query as any);
+    return reply.send(await AdminService.getRevenueStats(from, to));
+  },
   async getSignupTrend(_req: FastifyRequest, reply: FastifyReply) {
     return reply.send(await AdminService.getSignupTrend());
   },
