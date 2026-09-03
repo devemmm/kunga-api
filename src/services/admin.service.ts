@@ -216,9 +216,10 @@ export const AdminService = {
       prisma.manualPayment.aggregate({ where: { status: 'APPROVED' }, _sum: { amount: true } }),
       prisma.manualPayment.aggregate({ where: { status: 'APPROVED', ...(filterRange ? { resolvedAt: filterRange } : {}) }, _sum: { amount: true } }),
       prisma.manualPayment.aggregate({ where: { status: 'APPROVED', resolvedAt: monthRange }, _sum: { amount: true } }),
-      prisma.paymentTransaction.aggregate({ where: { status: 'SUCCESS' }, _sum: { amount: true } }),
-      prisma.paymentTransaction.aggregate({ where: { status: 'SUCCESS', ...(filterRange ? { resolvedAt: filterRange } : {}) }, _sum: { amount: true } }),
-      prisma.paymentTransaction.aggregate({ where: { status: 'SUCCESS', resolvedAt: monthRange }, _sum: { amount: true } }),
+      // Exclude platform='manual' — those are already counted in manual_payments to avoid double-counting
+      prisma.paymentTransaction.aggregate({ where: { status: 'SUCCESS', platform: { not: 'manual' } }, _sum: { amount: true } }),
+      prisma.paymentTransaction.aggregate({ where: { status: 'SUCCESS', platform: { not: 'manual' }, ...(filterRange ? { resolvedAt: filterRange } : {}) }, _sum: { amount: true } }),
+      prisma.paymentTransaction.aggregate({ where: { status: 'SUCCESS', platform: { not: 'manual' }, resolvedAt: monthRange }, _sum: { amount: true } }),
     ]);
 
     // By platform breakdown for the selected period
@@ -230,7 +231,7 @@ export const AdminService = {
       }),
       prisma.paymentTransaction.groupBy({
         by: ['platform', 'currency'],
-        where: { status: 'SUCCESS', ...(filterRange ? { resolvedAt: filterRange } : {}) },
+        where: { status: 'SUCCESS', platform: { not: 'manual' }, ...(filterRange ? { resolvedAt: filterRange } : {}) },
         _sum: { amount: true }, _count: true,
       }),
     ]);
@@ -244,7 +245,7 @@ export const AdminService = {
         include: { user: { select: { name: true, email: true } } },
       }),
       prisma.paymentTransaction.findMany({
-        where: { status: 'SUCCESS', ...(filterRange ? { resolvedAt: filterRange } : {}) },
+        where: { status: 'SUCCESS', platform: { not: 'manual' }, ...(filterRange ? { resolvedAt: filterRange } : {}) },
         orderBy: { resolvedAt: 'desc' },
         take: 50,
         include: { user: { select: { name: true, email: true } } },
