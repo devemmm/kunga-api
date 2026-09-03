@@ -10,30 +10,26 @@ import {
 } from '../models/auth.model.js';
 
 export const AuthController = {
-  async register(req: FastifyRequest, reply: FastifyReply) {
-    const body = RegisterDto.parse(req.body);
-    const result = await AuthService.register(req.server as FastifyInstance, body);
-    return reply.status(201).send({
-      emailVerificationRequired: true,
-      verificationToken: result.verificationToken,
-      maskedEmail: result.maskedEmail,
-    });
+  async sendRegistrationOtp(req: FastifyRequest, reply: FastifyReply) {
+    const { email } = req.body as { email: string };
+    const result = await AuthService.sendRegistrationOtp(email.trim().toLowerCase());
+    return reply.send(result);
   },
 
-  async verifyEmail(req: FastifyRequest, reply: FastifyReply) {
-    const { verificationToken, otp } = req.body as { verificationToken: string; otp: string };
-    const user = await AuthService.verifyEmail(req.server as FastifyInstance, verificationToken, otp);
+  async resendRegistrationOtp(req: FastifyRequest, reply: FastifyReply) {
+    const { email } = req.body as { email: string };
+    const result = await AuthService.resendRegistrationOtp(email.trim().toLowerCase());
+    return reply.send(result);
+  },
+
+  async register(req: FastifyRequest, reply: FastifyReply) {
+    const body = RegisterDto.parse(req.body);
+    const user = await AuthService.register(req.server as FastifyInstance, body as any);
     const tokens = generateTokens(req.server as FastifyInstance, user.id, user.role);
-    return reply.send({
+    return reply.status(201).send({
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
       ...tokens,
     });
-  },
-
-  async resendVerificationEmail(req: FastifyRequest, reply: FastifyReply) {
-    const { verificationToken } = req.body as { verificationToken: string };
-    const result = await AuthService.resendVerificationEmail(req.server as FastifyInstance, verificationToken);
-    return reply.send(result);
   },
 
   async login(req: FastifyRequest, reply: FastifyReply) {

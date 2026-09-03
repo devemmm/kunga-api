@@ -72,39 +72,58 @@ export function generateTokens(server: FastifyInstance, userId: string, role: st
   return { accessToken, refreshToken };
 }
 
-// ─── Email verification helpers ───────────────────────────────────────────────
+// ─── Pre-registration email OTP (keyed by email, no account yet) ─────────────
 
-const EV_TTL       = 600;  // OTP valid 10 minutes
-const EV_MAX_TRIES = 3;
+const REG_OTP_TTL      = 600; // 10 minutes
+const REG_OTP_MAX_TRIES = 3;
 
-function evKey(userId: string) { return `ev:otp:${userId}`; }
+function regOtpKey(email: string) { return `reg:otp:${email.toLowerCase()}`; }
 
-async function storeEvOtp(userId: string, otp: string): Promise<void> {
-  await redis.set(evKey(userId), JSON.stringify({ otp, attempts: 0 }), 'EX', EV_TTL);
+async function storeRegOtp(email: string, otp: string): Promise<void> {
+  await redis.set(regOtpKey(email), JSON.stringify({ otp, attempts: 0 }), 'EX', REG_OTP_TTL);
 }
 
-async function verifyEvOtp(userId: string, inputOtp: string): Promise<'ok' | 'invalid' | 'expired' | 'locked'> {
-  const raw = await redis.get(evKey(userId));
+async function verifyRegOtp(email: string, inputOtp: string): Promise<'ok' | 'invalid' | 'expired' | 'locked'> {
+  const raw = await redis.get(regOtpKey(email));
   if (!raw) return 'expired';
 
   const record = JSON.parse(raw) as { otp: string; attempts: number };
-  if (record.attempts >= EV_MAX_TRIES) {
-    await redis.del(evKey(userId));
+  if (record.attempts >= REG_OTP_MAX_TRIES) {
+    await redis.del(regOtpKey(email));
     return 'locked';
   }
   if (record.otp !== inputOtp) {
-    const ttl = await redis.ttl(evKey(userId));
-    await redis.set(evKey(userId), JSON.stringify({ ...record, attempts: record.attempts + 1 }), 'EX', ttl > 0 ? ttl : EV_TTL);
+    const ttl = await redis.ttl(regOtpKey(email));
+    await redis.set(regOtpKey(email), JSON.stringify({ ...record, attempts: record.attempts + 1 }), 'EX', ttl > 0 ? ttl : REG_OTP_TTL);
     return 'invalid';
   }
-  await redis.del(evKey(userId));
+  await redis.del(regOtpKey(email));
   return 'ok';
 }
 
 // ─── AUTH SERVICE ─────────────────────────────────────────────────────────────
 
 export const AuthService = {
-  async register(server: FastifyInstance, data: RegisterInput) {
+  /** Step 1: send OTP to email — no account created yet */
+  async sendRegistrationOtp(email: string): Promise<{ maskedEmail: string }> {
+    const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    if (existing) throw Object.assign(new Error('Email already in use'), { status: 409 });
+
+    const otp = generateOtp();
+    await storeRegOtp(email, otp);
+    sendOtpEmail(email, '', otp).catch(() => {});
+
+    return { maskedEmail: maskEmail(email) };
+  },
+
+  /** Step 2: verify OTP then create account and return tokens */
+  async register(server: FastifyInstance, data: RegisterInput & { otp: string }) {
+    const result = await verifyRegOtp(data.email, data.otp);
+    if (result === 'expired') throw Object.assign(new Error('Code expired, request a new one'), { status: 410 });
+    if (result === 'locked')  throw Object.assign(new Error('Too many attempts, request a new code'), { status: 429 });
+    if (result === 'invalid') throw Object.assign(new Error('Incorrect code'), { status: 422 });
+
+    // Double-check email not taken between OTP send and now
     const existing = await prisma.user.findUnique({ where: { email: data.email } });
     if (existing) throw Object.assign(new Error('Email already in use'), { status: 409 });
 
@@ -114,76 +133,24 @@ export const AuthService = {
         email: data.email,
         name: data.name,
         passwordHash,
-        emailVerified: false,
+        emailVerified: true,
         preferences: { create: {} },
       },
     });
 
-    // Send email verification OTP instead of welcome email
-    const otp = generateOtp();
-    await storeEvOtp(user.id, otp);
-    sendOtpEmail(user.email, user.name ?? '', otp).catch(() => {});
-
-    // Short-lived token used only at /auth/verify-email
-    const verificationToken = server.jwt.sign(
-      { sub: user.id, type: 'email_verification', email: user.email },
-      { expiresIn: '15m' },
-    );
-
-    return { verificationToken, maskedEmail: maskEmail(user.email) };
-  },
-
-  async verifyEmail(server: FastifyInstance, verificationToken: string, otp: string) {
-    let payload: { sub: string; type: string; email: string };
-    try {
-      payload = server.jwt.verify(verificationToken) as any;
-    } catch {
-      throw Object.assign(new Error('Invalid or expired verification token'), { status: 401 });
-    }
-    if (payload.type !== 'email_verification') {
-      throw Object.assign(new Error('Invalid token type'), { status: 401 });
-    }
-
-    const result = await verifyEvOtp(payload.sub, otp);
-    if (result === 'expired') throw Object.assign(new Error('OTP expired, request a new code'), { status: 410 });
-    if (result === 'locked')  throw Object.assign(new Error('Too many attempts, request a new code'), { status: 429 });
-    if (result === 'invalid') throw Object.assign(new Error('Incorrect code'), { status: 422 });
-
-    const user = await prisma.user.update({
-      where: { id: payload.sub },
-      data: { emailVerified: true },
-    });
-
     sendWelcomeEmail(user.email, user.name ?? '').catch(() => {});
-
     return user;
   },
 
-  async resendVerificationEmail(server: FastifyInstance, verificationToken: string) {
-    let payload: { sub: string; type: string; email: string };
-    try {
-      payload = server.jwt.verify(verificationToken) as any;
-    } catch {
-      throw Object.assign(new Error('Invalid or expired verification token'), { status: 401 });
-    }
-    if (payload.type !== 'email_verification') {
-      throw Object.assign(new Error('Invalid token type'), { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({ where: { id: payload.sub } });
-    if (!user) throw Object.assign(new Error('User not found'), { status: 404 });
-    if (user.emailVerified) throw Object.assign(new Error('Email already verified'), { status: 409 });
+  /** Resend OTP for registration — email not yet in DB */
+  async resendRegistrationOtp(email: string): Promise<{ maskedEmail: string }> {
+    const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    if (existing) throw Object.assign(new Error('Email already in use'), { status: 409 });
 
     const otp = generateOtp();
-    await storeEvOtp(user.id, otp);
-    sendOtpEmail(user.email, user.name ?? '', otp).catch(() => {});
-
-    // Return a fresh token (extends 15-min window)
-    const newToken = server.jwt.sign(
-      { sub: user.id, type: 'email_verification', email: user.email },
-      { expiresIn: '15m' },
-    );
-    return { verificationToken: newToken, maskedEmail: maskEmail(user.email) };
+    await storeRegOtp(email, otp);
+    sendOtpEmail(email, '', otp).catch(() => {});
+    return { maskedEmail: maskEmail(email) };
   },
 
   async login(server: FastifyInstance, data: LoginInput) {

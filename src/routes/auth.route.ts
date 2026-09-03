@@ -32,11 +32,12 @@ export async function authRoutes(server: FastifyInstance) {
     schema: {
       tags: ['Auth'], summary: 'Register with email & password',
       body: {
-        type: 'object', required: ['email', 'name', 'password'],
+        type: 'object', required: ['email', 'name', 'password', 'otp'],
         properties: {
           email: { type: 'string', format: 'email' },
           name: { type: 'string', minLength: 2 },
           password: { type: 'string', minLength: 8 },
+          otp: { type: 'string', minLength: 6, maxLength: 6 },
         },
       },
       response: {
@@ -53,28 +54,27 @@ export async function authRoutes(server: FastifyInstance) {
     preHandler: [countryRegister],
   }, AuthController.register);
 
-  server.post('/verify-email', {
+  server.post('/send-registration-otp', {
     schema: {
-      tags: ['Auth'], summary: 'Verify email with OTP after registration',
+      tags: ['Auth'], summary: 'Send OTP to email before registration — no account created yet',
       body: {
-        type: 'object', required: ['verificationToken', 'otp'],
-        properties: {
-          verificationToken: { type: 'string' },
-          otp: { type: 'string', minLength: 6, maxLength: 6 },
-        },
+        type: 'object', required: ['email'],
+        properties: { email: { type: 'string', format: 'email' } },
       },
     },
-  }, AuthController.verifyEmail);
+    preHandler: [countryRegister],
+  }, AuthController.sendRegistrationOtp);
 
-  server.post('/resend-verification', {
+  server.post('/resend-registration-otp', {
     schema: {
-      tags: ['Auth'], summary: 'Resend email verification OTP',
+      tags: ['Auth'], summary: 'Resend registration OTP',
       body: {
-        type: 'object', required: ['verificationToken'],
-        properties: { verificationToken: { type: 'string' } },
+        type: 'object', required: ['email'],
+        properties: { email: { type: 'string', format: 'email' } },
       },
     },
-  }, AuthController.resendVerificationEmail);
+    preHandler: [countryRegister],
+  }, AuthController.resendRegistrationOtp);
 
   server.post('/login', {
     schema: {
