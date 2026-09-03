@@ -34,6 +34,7 @@ export const config = {
 
   google: {
     clientId:        process.env.GOOGLE_CLIENT_ID         ?? '',
+    webClientId:     process.env.GOOGLE_WEB_CLIENT_ID     ?? '',
     iosClientId:     process.env.GOOGLE_IOS_CLIENT_ID     ?? '',
     androidClientId: process.env.GOOGLE_ANDROID_CLIENT_ID ?? '',
   },

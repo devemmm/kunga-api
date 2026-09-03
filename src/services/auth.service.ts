@@ -303,7 +303,7 @@ export const AuthService = {
       // Accept tokens issued for the web client, the iOS native client, or
       // the iOS-type client reused for the Android browser-redirect flow
       // (Android-type clients don't support that flow's redirect_uri).
-      const audiences = [config.google.clientId, config.google.iosClientId, config.google.androidClientId]
+      const audiences = [config.google.clientId, config.google.webClientId, config.google.iosClientId, config.google.androidClientId]
         .filter(Boolean);
       ticket = await googleClient.verifyIdToken({
         idToken: data.idToken,
