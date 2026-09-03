@@ -30,6 +30,7 @@ model User {
   theme              String    @default("system") // "system" | "light" | "dark"
   lang               String    @default("en") // "en" | "fr" | "kin"
   mfaEnabled         Boolean   @default(false)
+  emailVerified      Boolean   @default(false)
   passwordChangedAt  DateTime?
   phone              String?
   isActive           Boolean   @default(true)

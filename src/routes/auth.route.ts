@@ -53,6 +53,29 @@ export async function authRoutes(server: FastifyInstance) {
     preHandler: [countryRegister],
   }, AuthController.register);
 
+  server.post('/verify-email', {
+    schema: {
+      tags: ['Auth'], summary: 'Verify email with OTP after registration',
+      body: {
+        type: 'object', required: ['verificationToken', 'otp'],
+        properties: {
+          verificationToken: { type: 'string' },
+          otp: { type: 'string', minLength: 6, maxLength: 6 },
+        },
+      },
+    },
+  }, AuthController.verifyEmail);
+
+  server.post('/resend-verification', {
+    schema: {
+      tags: ['Auth'], summary: 'Resend email verification OTP',
+      body: {
+        type: 'object', required: ['verificationToken'],
+        properties: { verificationToken: { type: 'string' } },
+      },
+    },
+  }, AuthController.resendVerificationEmail);
+
   server.post('/login', {
     schema: {
       tags: ['Auth'], summary: 'Login with email & password',

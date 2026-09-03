@@ -12,12 +12,28 @@ import {
 export const AuthController = {
   async register(req: FastifyRequest, reply: FastifyReply) {
     const body = RegisterDto.parse(req.body);
-    const user = await AuthService.register(body);
-    const tokens = generateTokens(req.server as FastifyInstance, user.id, user.role);
+    const result = await AuthService.register(req.server as FastifyInstance, body);
     return reply.status(201).send({
+      emailVerificationRequired: true,
+      verificationToken: result.verificationToken,
+      maskedEmail: result.maskedEmail,
+    });
+  },
+
+  async verifyEmail(req: FastifyRequest, reply: FastifyReply) {
+    const { verificationToken, otp } = req.body as { verificationToken: string; otp: string };
+    const user = await AuthService.verifyEmail(req.server as FastifyInstance, verificationToken, otp);
+    const tokens = generateTokens(req.server as FastifyInstance, user.id, user.role);
+    return reply.send({
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
       ...tokens,
     });
+  },
+
+  async resendVerificationEmail(req: FastifyRequest, reply: FastifyReply) {
+    const { verificationToken } = req.body as { verificationToken: string };
+    const result = await AuthService.resendVerificationEmail(req.server as FastifyInstance, verificationToken);
+    return reply.send(result);
   },
 
   async login(req: FastifyRequest, reply: FastifyReply) {
