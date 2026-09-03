@@ -63,6 +63,7 @@ model User {
   assignedAskGadSubmissions AskGadSubmission[]          @relation("AskGadAssignee")
   countryUpdates            CountryAvailability[]       @relation("CountryUpdatedBy")
   countryAudits             CountryAuditLog[]           @relation("CountryAuditPerformedBy")
+  bookDownloads             BookDownload[]
 
   @@map("users")
 }
@@ -897,4 +898,20 @@ model CountryAccessAttempt {
   @@index([countryId, createdAt])
   @@index([createdAt])
   @@map("country_access_attempts")
+}
+
+model BookDownload {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookSlug   String   // e.g. "why-your-child-understand-but-doesnt-speak"
+  platform   String   @default("web") // "web" | "mobile"
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([bookSlug, createdAt])
+  @@index([createdAt])
+  @@map("book_downloads")
 }

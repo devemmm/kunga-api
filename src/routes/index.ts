@@ -205,3 +205,43 @@ export async function analyticsRoutes(server: FastifyInstance) {
     config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
   }, SiteAnalyticsController.getPublicStats);
 }
+
+// ─── BOOK DOWNLOADS ──────────────────────────────────────────────────────────
+export async function bookDownloadsRoutes(server: FastifyInstance) {
+  // Authenticated users: track a download
+  server.post('/track', {
+    schema: {
+      tags: ['Book Downloads'],
+      summary: 'Record a free-book download event',
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['bookSlug'],
+        properties: {
+          bookSlug: { type: 'string' },
+          platform: { type: 'string', enum: ['web', 'mobile'] },
+        },
+      },
+    },
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    preHandler: [requireAuth],
+  }, async (req: any, reply: any) => {
+    const { bookSlug, platform = 'web' } = req.body as { bookSlug: string; platform?: string };
+    const userId  = req.currentUser.id;
+    const ip      = req.ip ?? req.headers['x-forwarded-for'] as string ?? undefined;
+    const ua      = req.headers['user-agent'] as string ?? undefined;
+    const { BookDownloadService } = await import('../services/book-download.service.js');
+    await BookDownloadService.track(userId, bookSlug, platform, ip, ua);
+    return reply.send({ ok: true });
+  });
+
+  // Admin: list + stats
+  server.get('/stats', {
+    schema: { tags: ['Book Downloads'], summary: '[Admin] Book download stats & list', security: [{ bearerAuth: [] }] },
+    preHandler: [requirePermission('VIEW_ANALYTICS', 'VIEW_DASHBOARD')],
+  }, async (req: any, reply: any) => {
+    const { page = 1, limit = 50 } = req.query as { page?: number; limit?: number };
+    const { BookDownloadService } = await import('../services/book-download.service.js');
+    return reply.send(await BookDownloadService.getStats(Number(page), Number(limit)));
+  });
+}

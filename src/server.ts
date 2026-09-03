@@ -17,7 +17,7 @@ import {
   modulesRoutes, videosRoutes,
   subscriptionsRoutes, paymentsRoutes, manualPaymentsRoutes,
   donationsRoutes, askGadRoutes,
-  announcementsRoutes, adminRoutes, analyticsRoutes,
+  announcementsRoutes, adminRoutes, analyticsRoutes, bookDownloadsRoutes,
 } from './routes/index.js';
 import {
   progressRoutes, routineRoutes, milestonesRoutes,
@@ -294,6 +294,7 @@ Preview modules (\`isPreview: true\`) are always accessible.
   await server.register(supportTeamRoutes,   { prefix: `${API}/admin/support-team` });
   await server.register(assessmentsRoutes,   { prefix: `${API}/assessments` });
   await server.register(countryRoutes,       { prefix: `${API}/country` });
+  await server.register(bookDownloadsRoutes, { prefix: `${API}/books` });
 
   // ─── APP VERSION CHECK (public — no auth required) ────────────────────────
   // Mobile app calls this on startup to check for forced/optional updates.

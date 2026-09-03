@@ -13,6 +13,30 @@ docker compose up -d
 echo "▶  Waiting for container to be ready..."
 sleep 10
 
+echo "▶  Running DB migrations (idempotent)..."
+docker compose exec -T kunga-api node -e "
+const { PrismaClient } = require('/app/node_modules/.prisma/client/index.js');
+const prisma = new PrismaClient();
+(async () => {
+  await prisma.\$executeRawUnsafe(\`
+    CREATE TABLE IF NOT EXISTS book_downloads (
+      id           TEXT        PRIMARY KEY DEFAULT concat('c', substr(md5(random()::text), 1, 24)),
+      \"userId\"     TEXT        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      \"bookSlug\"   TEXT        NOT NULL,
+      platform     TEXT        NOT NULL DEFAULT 'web',
+      ip           TEXT,
+      \"userAgent\"  TEXT,
+      \"createdAt\"  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  \`);
+  await prisma.\$executeRawUnsafe(\`CREATE INDEX IF NOT EXISTS book_downloads_userId_createdAt   ON book_downloads (\"userId\",   \"createdAt\");\`);
+  await prisma.\$executeRawUnsafe(\`CREATE INDEX IF NOT EXISTS book_downloads_bookSlug_createdAt ON book_downloads (\"bookSlug\", \"createdAt\");\`);
+  await prisma.\$executeRawUnsafe(\`CREATE INDEX IF NOT EXISTS book_downloads_createdAt          ON book_downloads (\"createdAt\");\`);
+  await prisma.\$disconnect();
+  console.log('✅ DB migrations done.');
+})().catch(e => { console.error(e); process.exit(1); });
+"
+
 echo "▶  Running RBAC seed (idempotent)..."
 docker compose exec -T kunga-api node -e "
 const { PrismaClient } = require('/app/node_modules/.prisma/client/index.js');
